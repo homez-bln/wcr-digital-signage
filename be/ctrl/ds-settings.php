@@ -2,6 +2,7 @@
 /**
  * ctrl/ds-settings.php — DS Zentraler Controller v3
  * Theme-Switcher + Farben + Schriftart in einer Seite.
+ * BE ist Master — schreibt/liest wp_options direkt per PDO.
  */
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
@@ -40,6 +41,7 @@ $COLORS = [
 ];
 
 // ── DB-Hilfsfunktionen ────────────────────────────────────────
+
 function dsc_option_get(PDO $pdo, string $name, string $default = ''): string {
     try {
         $st = $pdo->prepare("SELECT option_value FROM wp_options WHERE option_name = ? LIMIT 1");
@@ -61,16 +63,66 @@ function dsc_option_set(PDO $pdo, string $name, string $value): bool {
     } catch (Exception $e) { return false; }
 }
 
+/**
+ * Robust maybe_unserialize:
+ * - Versucht bis zu 2x zu deserialisieren (fix für WP double-serialize).
+ * - Gibt [array $data, bool $wasDoubleEncoded] zurück.
+ */
+function dsc_maybe_unserialize(string $raw): array {
+    // Nicht serialisiert → direkt zurück
+    if (!preg_match('/^[aOsid]:\d+/', $raw)) {
+        return [null, false];
+    }
+
+    $v1 = @unserialize($raw);
+
+    // Erster Versuch ergibt direkt ein Array → sauber
+    if (is_array($v1)) {
+        return [$v1, false];
+    }
+
+    // Erster Versuch ergibt wieder einen serialisierten String → double-encoded
+    if (is_string($v1) && preg_match('/^[aOsid]:\d+/', $v1)) {
+        $v2 = @unserialize($v1);
+        if (is_array($v2)) {
+            return [$v2, true]; // war double-encoded, jetzt repariert
+        }
+    }
+
+    return [null, false];
+}
+
+/**
+ * Lädt Optionen aus DB.
+ * Repariert automatisch double-serialized Werte (schreibt sauber zurück).
+ */
 function dsc_load_opts(PDO $pdo, array $defaults): array {
     $raw = dsc_option_get($pdo, 'wcr_ds_options');
-    if ($raw) {
-        $saved = @unserialize($raw);
-        if (is_array($saved)) return array_merge($defaults, $saved);
+
+    if ($raw === '') {
+        return $defaults;
     }
-    return $defaults;
+
+    [$data, $wasDouble] = dsc_maybe_unserialize($raw);
+
+    if (!is_array($data)) {
+        // Komplett unlesbar → Defaults zurückschreiben und verwenden
+        dsc_option_set($pdo, 'wcr_ds_options', serialize($defaults));
+        return $defaults;
+    }
+
+    $merged = array_merge($defaults, $data);
+
+    // Auto-Repair: war double-encoded → sauber zurückschreiben
+    if ($wasDouble) {
+        dsc_option_set($pdo, 'wcr_ds_options', serialize($merged));
+    }
+
+    return $merged;
 }
 
 function dsc_save_opts(PDO $pdo, array $data): bool {
+    // Schreibe immer als einfaches PHP-serialize() — identisch mit WP's maybe_serialize für Arrays
     return dsc_option_set($pdo, 'wcr_ds_options', serialize($data));
 }
 
@@ -82,6 +134,7 @@ function dsc_get_theme(PDO $pdo): string {
 // ── POST-Handler ──────────────────────────────────────────────
 $msg     = '';
 $msgType = '';
+$dbRepaired = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim($_POST['action'] ?? '');
@@ -110,6 +163,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new['font_family'] = in_array($_POST['font_family'] ?? '', $FONTS, true)
             ? $_POST['font_family'] : $DEFAULTS['font_family'];
 
+        // Viewport-Werte aus bestehenden Opts übernehmen (nicht im Formular, aber bewahren)
+        $existing = dsc_load_opts($pdo, $DEFAULTS);
+        $new['viewport_w'] = $existing['viewport_w'] ?? $DEFAULTS['viewport_w'];
+        $new['viewport_h'] = $existing['viewport_h'] ?? $DEFAULTS['viewport_h'];
+
         if (dsc_save_opts($pdo, array_merge($DEFAULTS, $new))) {
             $msg = 'Gespeichert — Änderungen sind sofort auf allen DS-Seiten aktiv.'; $msgType = 'ok';
             try { $pdo->exec("DELETE FROM wp_options WHERE option_name LIKE '_transient%wcr%'"); } catch (Exception $e) {}
@@ -127,17 +185,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Laden — dsc_load_opts repariert ggf. auto double-serialize
 $opts        = dsc_load_opts($pdo, $DEFAULTS);
 $activeTheme = dsc_get_theme($pdo);
+
 if (!function_exists('ov')) {
     function ov(array $o, string $k): string { return htmlspecialchars($o[$k] ?? ''); }
 }
+
 $dbWritable = true;
 try {
     $t = $pdo->prepare("SELECT COUNT(*) FROM wp_options WHERE option_name IN ('wcr_ds_options','wcr_ds_theme')");
     $t->execute();
     $dbWritable = ($t->fetchColumn() !== false);
 } catch (Exception $e) { $dbWritable = false; }
+
+// Debug: zeige ob Wert sauber aus DB gelesen wurde
+$dbStatus = ($opts !== $DEFAULTS) ? 'ok' : 'defaults';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -282,6 +346,14 @@ try {
       </div>
     </div>
 
+    <!-- DB Status Badge -->
+    <div class="dsc-block" style="padding:12px 16px;">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:<?= $dbStatus==='ok'?'#34c759':'#ff9500' ?>;display:inline-block;flex-shrink:0"></span>
+        <span style="color:var(--text-muted)">DB-Status: <strong style="color:var(--text-main)"><?= $dbStatus==='ok' ? '✓ Werte aus DB geladen' : '⚠ Standardwerte (noch keine gespeicherten Werte)' ?></strong></span>
+      </div>
+    </div>
+
     <div class="dsc-actions">
       <button type="submit" class="btn-save">💾 Einstellungen speichern</button>
       <button type="button" class="btn-reset"
@@ -331,7 +403,7 @@ try {
           <?php foreach(['Mo:','Di:','Mi:','Do:','Fr:'] as $day): ?>
           <div class="pv-oh-row">
             <span class="pv-oh-day"><?= $day ?></span>
-            <span class="pv-oh-time" id="pv-oh-t">14 – 20</span>
+            <span class="pv-oh-time">14 – 20</span>
             <span class="pv-oh-unit">UHR</span>
           </div>
           <?php endforeach; ?>
@@ -491,7 +563,7 @@ function render() {
   var hi = document.getElementById('pv-hi');
   if (hi) { hi.style.color = aurora ? G.blue : G.green; hi.style.fontFamily = font; }
   var dot = document.getElementById('pv-dot');
-  if (dot) { dot.style.background = aurora ? G.blue : G.green; dot.style.boxShadow = glass ? '0 0 6px '+(aurora?G.blue:G.green) : 'none'; }
+  if (dot) { dot.style.background = aurora ? G.blue : G.green; }
   ['pv-l1','pv-l2'].forEach(function(id,i) {
     var el=document.getElementById(id);
     var c = aurora ? G.blue : G.green;
@@ -501,7 +573,7 @@ function render() {
   for (var i=0;i<3;i++) {
     var card = document.getElementById('pc-'+i);
     var cardBg = glass ? 'rgba(255,255,255,0.06)' : (aurora ? h2r(G.bgDark,.92) : G.bgDark);
-    if (card) { card.style.background = cardBg; card.style.borderRadius = '5px'; }
+    if (card) { card.style.background = cardBg; }
     var bar = document.getElementById('pb-'+i);
     if (bar) bar.style.background = aurora
       ? (i%2===0 ? 'linear-gradient(90deg,'+G.green+','+G.blue+')' : 'linear-gradient(90deg,'+G.blue+','+G.green+')')
@@ -525,7 +597,6 @@ function render() {
     gl.style.background = glass
       ? 'radial-gradient(circle at top left,'+h2r(G.green,.24)+' 0%,'+h2r(G.blue,.14)+' 40%,rgba(0,0,0,.45) 100%)'
       : (aurora ? h2r(G.bgDark,.9) : G.bgDark);
-    gl.style.borderRadius = '6px';
     gl.style.border = '1px solid '+(aurora ? h2r(G.blue,.22) : 'rgba(255,255,255,0.09)');
   }
   document.querySelectorAll('.pv-oh-day').forEach(function(el) { el.style.color=G.muted; });
