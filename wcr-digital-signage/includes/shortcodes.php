@@ -49,11 +49,10 @@ if (!function_exists('opening_hours_pixel_perfect')) {
 
         $tz      = new DateTimeZone('Europe/Berlin');
         $today   = new DateTime('now', $tz);
-        $dow     = (int)$today->format('N'); // 1=Mo … 7=So
+        $dow     = (int)$today->format('N');
         $montag  = (clone $today)->modify('-' . ($dow - 1) . ' days')->format('Y-m-d');
         $sonntag = (clone $today)->modify('+' . (7 - $dow) . ' days')->format('Y-m-d');
 
-        // Mo–So inkl. Kurs-Spalten
         $query = $externe_db->prepare(
             "SELECT datum, start_time, end_time, is_closed,
                     COALESCE(course1, 0)      AS course1,
@@ -76,19 +75,43 @@ if (!function_exists('opening_hours_pixel_perfect')) {
         if (!$css_done) {
             $css_done = true;
             echo '<style>
-.oh-kurs-info-row td {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: .10em;
+/* Störer-Badge: nur Text, kein Icon */
+.oh-stoerer {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 12px;
+    padding: 5px 11px;
+    background: var(--clr-green, #5d9c5d);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--clr-green, #679467);
-    text-align: right;
-    padding: 0 0 10px 0;
-    line-height: 1.3;
+    line-height: 1.25;
+    border-radius: 4px;
+    transform: rotate(-3deg);
+    white-space: nowrap;
+    box-shadow: 2px 2px 6px rgba(0,0,0,.35);
 }
+.oh-stoerer .st-title {
+    display: block;
+    font-size: 11px;
+    opacity: .85;
+    letter-spacing: .1em;
+}
+.oh-stoerer .st-time {
+    display: block;
+    font-size: 13px;
+    letter-spacing: .04em;
+}
+/* Trennlinie Fr/Sa */
 .oh-weekend-sep td {
     border-top: 1px solid rgba(255,255,255,.10) !important;
     padding-top: 12px !important;
+}
+/* col-5-unit darf bei Badge breiter werden */
+.oh-table td.col-5-unit {
+    white-space: nowrap;
 }
 </style>' . "\n";
         }
@@ -113,16 +136,13 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                 $c2txt = trim($row->course2_text ?? '');
                 $hasKurs = $isWeekend && ($c1 || $c2);
 
-                // Trennlinie vor erstem Wochenend-Tag
                 $sepClass = '';
                 if ($isWeekend && $firstWeekend) {
                     $sepClass    = ' oh-weekend-sep';
                     $firstWeekend = false;
                 }
 
-                // Sa/So ohne Öffnungszeit und ohne Kurs → nicht anzeigen
                 if ($isWeekend && !$hasStart && !$hasKurs) continue;
-                // Mo–Fr ohne Öffnungszeit → nicht anzeigen
                 if (!$isWeekend && !$hasStart) continue;
 
                 // ── GESCHLOSSEN ──
@@ -154,6 +174,23 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                     $end = $dt->format('H');
                 }
 
+                // Störer-Badge bauen (nur Text)
+                $stoerer = '';
+                if ($hasKurs) {
+                    $parts = [];
+                    if ($c1 && $c1txt) $parts[] = $c1txt;
+                    if ($c2 && $c2txt) $parts[] = $c2txt;
+                    $timeStr = !empty($parts) ? implode(' / ', $parts) : '';
+
+                    $stoerer = '<span class="oh-stoerer">';
+                    $stoerer .= '<span class="st-title">Anfaenger-</span>';
+                    $stoerer .= '<span class="st-title">kurs</span>';
+                    if ($timeStr) {
+                        $stoerer .= '<span class="st-time">' . esc_html($timeStr) . '</span>';
+                    }
+                    $stoerer .= '</span>';
+                }
+
                 $isToday = ($row->datum === $today->format('Y-m-d'));
                 $trClass = trim(($isToday ? 'today' : '') . $sepClass);
 
@@ -164,28 +201,13 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                     echo '<td class="col-2-start">' . esc_html($start) . '</td>';
                     echo '<td class="col-3-sep">–</td>';
                     echo '<td class="col-4-end">'   . esc_html($end)   . '</td>';
-                    echo '<td class="col-5-unit">UHR</td>';
+                    echo '<td class="col-5-unit">UHR' . $stoerer . '</td>';
                     echo '</tr>';
                 } elseif ($hasKurs) {
-                    // Sa/So nur mit Kurs, keine Wakeboard-Zeit
                     echo '<tr' . ($trClass ? ' class="' . $trClass . '"' : '') . '>';
                     echo '<td class="col-1-day">' . esc_html($tag) . ':</td>';
                     echo '<td class="col-2-start" colspan="3" style="color:var(--clr-text-muted,#7a8a8a);font-size:22px;">Kein Wakeboard</td>';
-                    echo '<td class="col-5-unit"></td>';
-                    echo '</tr>';
-                }
-
-                // ── Kurs-Textzeile (nur plain text, kein Icon) ──
-                if ($hasKurs) {
-                    $parts = [];
-                    if ($c1 && $c1txt) $parts[] = $c1txt;
-                    if ($c2 && $c2txt) $parts[] = $c2txt;
-                    $kursText = 'Anfaengerkurs';
-                    if (!empty($parts)) {
-                        $kursText .= ': ' . implode(' / ', $parts);
-                    }
-                    echo '<tr class="oh-kurs-info-row">';
-                    echo '<td colspan="5">' . esc_html($kursText) . '</td>';
+                    echo '<td class="col-5-unit">' . $stoerer . '</td>';
                     echo '</tr>';
                 }
             }
