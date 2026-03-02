@@ -2,8 +2,11 @@
 /**
  * Plugin Name: WCR Digital Signage
  * Description: Digital Signage System für Wake & Camp Ruhlsdorf
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      WCR
+ *
+ * BE is master — Einstellungen werden ausschließlich über /be/ctrl/ds-settings.php verwaltet.
+ * Dieses Plugin liest nur aus wp_options (wcr_ds_options / wcr_ds_theme) und gibt CSS aus.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -14,21 +17,21 @@ require_once plugin_dir_path(__FILE__) . 'includes/rest-api.php';
 require_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';
 
 /* ====================================================
-   DEFAULTS
+   DEFAULTS (müssen identisch mit BE $DEFAULTS sein)
 ==================================================== */
 function wcr_ds_defaults() {
     return array(
-        'clr_green'         => '#679467',
-        'clr_blue'          => '#019ee3',
-        'clr_white'         => '#ffffff',
-        'clr_text'          => '#eeeeee',
-        'clr_muted'         => '#7a8a8a',
-        'clr_bg'            => '#080808',
-        'clr_bg_dark'       => '#0d0d0d',
-        'clr_bg_glass'      => 'rgba(10,14,24,0.65)',
-        'font_family'       => 'Segoe UI',
-        'viewport_w'        => '1920',
-        'viewport_h'        => '1080',
+        'clr_green'    => '#679467',
+        'clr_blue'     => '#019ee3',
+        'clr_white'    => '#ffffff',
+        'clr_text'     => '#eeeeee',
+        'clr_muted'    => '#7a8a8a',
+        'clr_bg'       => '#080808',
+        'clr_bg_dark'  => '#0d0d0d',
+        'clr_bg_glass' => 'rgba(10,14,24,0.65)',
+        'font_family'  => 'Segoe UI',
+        'viewport_w'   => '1920',
+        'viewport_h'   => '1080',
     );
 }
 
@@ -36,7 +39,9 @@ function wcr_ds_defaults() {
    OPTION LESEN
 ==================================================== */
 function wcr_ds_get( $key ) {
-    $opts = get_option( 'wcr_ds_options', array() );
+    $raw  = get_option( 'wcr_ds_options', array() );
+    // BE speichert per PHP serialize() — WP’s get_option deserialisiert automatisch
+    $opts = is_array( $raw ) ? $raw : array();
     $defs = wcr_ds_defaults();
     if ( isset( $opts[ $key ] ) && '' !== $opts[ $key ] ) {
         return $opts[ $key ];
@@ -45,245 +50,7 @@ function wcr_ds_get( $key ) {
 }
 
 /* ====================================================
-   SANITIZE
-==================================================== */
-function wcr_ds_sanitize( $input ) {
-    if ( ! is_array( $input ) ) {
-        return array();
-    }
-    $out = array();
-    foreach ( $input as $k => $v ) {
-        $out[ sanitize_key( $k ) ] = sanitize_text_field( $v );
-    }
-    return $out;
-}
-
-/* ====================================================
-   SETTINGS REGISTRIEREN
-==================================================== */
-add_action( 'admin_init', 'wcr_ds_register_settings' );
-function wcr_ds_register_settings() {
-    register_setting( 'wcr_ds_group', 'wcr_ds_options', 'wcr_ds_sanitize' );
-}
-
-/* ====================================================
-   ADMIN MENU
-==================================================== */
-add_action( 'admin_menu', 'wcr_ds_add_menu' );
-function wcr_ds_add_menu() {
-    add_menu_page(
-        'WCR Digital Signage',
-        'WCR Signage',
-        'manage_options',
-        'wcr-ds-settings',
-        'wcr_ds_render_page',
-        'dashicons-desktop',
-        59
-    );
-    add_submenu_page(
-        'wcr-ds-settings',
-        'WCR Einstellungen',
-        'Einstellungen',
-        'manage_options',
-        'wcr-ds-settings',
-        'wcr_ds_render_page'
-    );
-}
-
-/* ====================================================
-   RESET HANDLER
-==================================================== */
-add_action( 'admin_init', 'wcr_ds_reset_handler' );
-function wcr_ds_reset_handler() {
-    if ( ! isset( $_POST['wcr_ds_reset'] ) ) return;
-    if ( ! current_user_can( 'manage_options' ) ) return;
-    check_admin_referer( 'wcr_ds_reset_action', 'wcr_ds_reset_nonce' );
-    delete_option( 'wcr_ds_options' );
-    wp_safe_redirect( admin_url( 'admin.php?page=wcr-ds-settings&wcr_reset=1' ) );
-    exit;
-}
-
-/* ====================================================
-   ADMIN SEITE RENDERN
-==================================================== */
-function wcr_ds_render_page() {
-    if ( ! current_user_can( 'manage_options' ) ) return;
-
-    $d = wcr_ds_defaults();
-
-    $palette = array(
-        'clr_green'   => 'Gruen',
-        'clr_blue'    => 'Blau',
-        'clr_white'   => 'Weiss',
-        'clr_text'    => 'Text',
-        'clr_muted'   => 'Grau',
-        'clr_bg'      => 'BG',
-        'clr_bg_dark' => 'BG Dunkel',
-    );
-
-    $color_fields = array(
-        'clr_green'   => 'Primaerfarbe (Gruen)',
-        'clr_blue'    => 'Akzentfarbe (Blau)',
-        'clr_white'   => 'Weiss (Preise)',
-        'clr_text'    => 'Textfarbe',
-        'clr_muted'   => 'Gedimmter Text (Grau)',
-        'clr_bg'      => 'Hintergrund (Schwarz)',
-        'clr_bg_dark' => 'Hintergrund dunkel',
-    );
-
-    $fonts = array(
-        'Segoe UI'   => 'Segoe UI (Standard)',
-        'Inter'      => 'Inter',
-        'Roboto'     => 'Roboto',
-        'Montserrat' => 'Montserrat',
-        'Poppins'    => 'Poppins',
-        'Oswald'     => 'Oswald',
-        'Raleway'    => 'Raleway',
-        'Open Sans'  => 'Open Sans',
-        'Lato'       => 'Lato',
-        'Ubuntu'     => 'Ubuntu',
-    );
-
-    $layout_fields = array(
-        'viewport_w' => array( 'Viewport Breite (px)', '800', '3840', '1' ),
-        'viewport_h' => array( 'Viewport Hoehe (px)',  '600', '2160', '1' ),
-    );
-
-    $shortcodes = array(
-        '/getraenke/'    => '[wcr_getraenke]',
-        '/softdrinks/'   => '[wcr_softdrinks]',
-        '/essen/'        => '[wcr_essen]',
-        '/kaffee/'       => '[wcr_kaffee]',
-        '/windmap/'      => '[wcr_windmap]',
-        '/wetter/'       => '[wcr_wetter]',
-        '/starter-pack/' => '[wcr_starter_pack]',
-    );
-
-    echo '<div class="wrap">';
-    echo '<h1 style="display:flex;align-items:center;gap:10px;">&#128250; WCR Digital Signage &ndash; Einstellungen</h1>';
-    echo '<p style="color:#555;margin-bottom:20px;">Alle Aenderungen wirken sofort auf alle DS-Seiten.</p>';
-
-    if ( isset( $_GET['wcr_reset'] ) ) {
-        echo '<div class="notice notice-success is-dismissible"><p>Einstellungen auf Standard zurueckgesetzt.</p></div>';
-    }
-    if ( isset( $_GET['settings-updated'] ) ) {
-        echo '<div class="notice notice-success is-dismissible"><p>Einstellungen gespeichert.</p></div>';
-    }
-
-    // Farbpalette Vorschau
-    echo '<div style="background:#111;border-radius:8px;padding:14px 20px;margin-bottom:24px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">';
-    echo '<span style="color:#666;font-size:0.72rem;text-transform:uppercase;letter-spacing:2px;width:100%;">Live Farbpalette</span>';
-    foreach ( $palette as $key => $label ) {
-        $val = wcr_ds_get( $key );
-        echo '<div style="text-align:center;">';
-        echo '<div style="width:42px;height:42px;border-radius:8px;background:' . esc_attr( $val ) . ';border:1px solid rgba(255,255,255,0.1);margin:0 auto 4px;"></div>';
-        echo '<div style="color:#888;font-size:0.68rem;">' . esc_html( $label ) . '</div>';
-        echo '</div>';
-    }
-    echo '</div>';
-
-    echo '<form method="post" action="options.php">';
-    settings_fields( 'wcr_ds_group' );
-
-    // FARBEN
-    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;">&#127912; Farben</h2>';
-    echo '<table class="form-table"><tbody>';
-    foreach ( $color_fields as $key => $label ) {
-        $val = wcr_ds_get( $key );
-        echo '<tr>';
-        echo '<th scope="row">' . esc_html( $label ) . '</th>';
-        echo '<td>';
-        echo '<input type="color" name="wcr_ds_options[' . esc_attr( $key ) . ']" id="cp_' . esc_attr( $key ) . '" value="' . esc_attr( $val ) . '" style="width:48px;height:32px;cursor:pointer;vertical-align:middle;">';
-        echo '&nbsp;<input type="text" id="ct_' . esc_attr( $key ) . '" value="' . esc_attr( $val ) . '" style="width:90px;font-family:monospace;vertical-align:middle;padding:3px 6px;">';
-        echo '&nbsp;<span style="color:#aaa;font-size:0.82em;">Standard: <code>' . esc_html( $d[ $key ] ) . '</code></span>';
-        echo '</td></tr>';
-    }
-    $bgg = wcr_ds_get( 'clr_bg_glass' );
-    echo '<tr><th scope="row">Glassmorphism BG</th><td>';
-    echo '<input type="text" name="wcr_ds_options[clr_bg_glass]" value="' . esc_attr( $bgg ) . '" style="width:230px;font-family:monospace;padding:3px 6px;">';
-    echo '&nbsp;<span style="color:#aaa;font-size:0.82em;">z.B. <code>rgba(10,18,40,0.60)</code></span>';
-    echo '</td></tr>';
-    echo '</tbody></table>';
-
-    // SCHRIFTART
-    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;">&#128300; Schriftart</h2>';
-    echo '<table class="form-table"><tbody>';
-    $cur_font = wcr_ds_get( 'font_family' );
-    echo '<tr><th scope="row">Schriftart</th><td>';
-    echo '<select name="wcr_ds_options[font_family]" id="wcr_font_sel" style="padding:4px 8px;">';
-    foreach ( $fonts as $fv => $fl ) {
-        $sel = ( $cur_font === $fv ) ? ' selected="selected"' : '';
-        echo '<option value="' . esc_attr( $fv ) . '"' . $sel . '>' . esc_html( $fl ) . '</option>';
-    }
-    echo '</select>';
-    echo '<div id="wcr_font_prev" style="margin-top:8px;padding:8px 14px;background:#111;color:#eee;border-radius:5px;font-size:1.3rem;font-family:' . esc_attr( $cur_font ) . ';display:inline-block;">WCR Signage &ndash; 12,50 &euro;</div>';
-    echo '<p style="color:#888;font-size:0.8em;">Google Fonts werden automatisch geladen.</p>';
-    echo '</td></tr>';
-    echo '</tbody></table>';
-
-    // VIEWPORT
-    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;">&#128207; Viewport</h2>';
-    echo '<table class="form-table"><tbody>';
-    foreach ( $layout_fields as $key => $cfg ) {
-        $val = wcr_ds_get( $key );
-        echo '<tr><th scope="row">' . esc_html( $cfg[0] ) . '</th><td>';
-        echo '<input type="number" name="wcr_ds_options[' . esc_attr( $key ) . ']" value="' . esc_attr( $val ) . '" min="' . esc_attr( $cfg[1] ) . '" max="' . esc_attr( $cfg[2] ) . '" step="' . esc_attr( $cfg[3] ) . '" style="width:80px;padding:3px 6px;">';
-        echo '&nbsp;<span style="color:#aaa;font-size:0.82em;">Standard: <code>' . esc_html( $d[ $key ] ) . '</code></span>';
-        echo '</td></tr>';
-    }
-    echo '</tbody></table>';
-
-    // SPEICHERN
-    echo '<p style="margin-top:20px;">';
-    submit_button( 'Einstellungen speichern', 'primary', 'submit', false );
-    echo '</p>';
-    echo '</form>';
-
-    // RESET
-    echo '<form method="post" style="margin-top:4px;">';
-    wp_nonce_field( 'wcr_ds_reset_action', 'wcr_ds_reset_nonce' );
-    echo '<input type="hidden" name="wcr_ds_reset" value="1">';
-    echo '<button type="submit" style="background:#b91c1c;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;" onclick="return confirm(\'Standard zuruecksetzen?\')">&#128260; Auf Standard zuruecksetzen</button>';
-    echo '</form>';
-
-    // SHORTCODE REFERENZ
-    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;margin-top:20px;">&#128203; Shortcode-Referenz</h2>';
-    echo '<table class="widefat" style="max-width:480px;">';
-    echo '<thead><tr><th>Seite</th><th>Shortcode</th></tr></thead><tbody>';
-    foreach ( $shortcodes as $pg => $sc ) {
-        echo '<tr>';
-        echo '<td><a href="' . esc_url( home_url( $pg ) ) . '" target="_blank">' . esc_html( $pg ) . '</a></td>';
-        echo '<td><code>' . esc_html( $sc ) . '</code></td>';
-        echo '</tr>';
-    }
-    echo '</tbody></table>';
-
-    // JS
-    echo '<script type="text/javascript">';
-    echo 'document.querySelectorAll("input[type=color]").forEach(function(cp){';
-    echo '  cp.addEventListener("input",function(){';
-    echo '    var txt=document.getElementById("ct_"+this.id.replace("cp_",""));';
-    echo '    if(txt){txt.value=this.value;}';
-    echo '  });';
-    echo '});';
-    echo 'document.querySelectorAll("input[type=text][id^=ct_]").forEach(function(ct){';
-    echo '  ct.addEventListener("input",function(){';
-    echo '    var cp=document.getElementById("cp_"+this.id.replace("ct_",""));';
-    echo '    if(cp&&/^#[0-9a-fA-F]{6}$/.test(this.value)){cp.value=this.value;}';
-    echo '  });';
-    echo '});';
-    echo 'var fs=document.getElementById("wcr_font_sel");';
-    echo 'if(fs){fs.addEventListener("change",function(){';
-    echo '  var p=document.getElementById("wcr_font_prev");';
-    echo '  if(p){p.style.fontFamily=this.value;}';
-    echo '});}';
-    echo '</script>';
-
-    echo '</div>';
-}
-
-/* ====================================================
-   DYNAMISCHES CSS
+   DYNAMISCHES CSS — liest aus BE-gespeicherten Werten
 ==================================================== */
 add_action( 'wp_head', 'wcr_ds_dynamic_css', 99 );
 function wcr_ds_dynamic_css() {
