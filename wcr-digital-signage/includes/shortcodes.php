@@ -40,21 +40,21 @@ if (!function_exists('random_background_shortcode')) {
     add_shortcode('random_bg', 'random_background_shortcode');
 }
 
-// ── Öffnungszeiten ──
+// ── Öffnungszeiten (inkl. Anfängerkurs-Block) ──
 if (!function_exists('opening_hours_pixel_perfect')) {
     function opening_hours_pixel_perfect($atts) {
         $atts       = shortcode_atts(array('tage' => 7), $atts);
         $externe_db = get_ionos_db_connection();
         if (!$externe_db) return '';
 
-        // Zuverlässige Wochenanfang-Berechnung (funktioniert unabhängig von Locale)
+        // Wochenanfang-Berechnung (Locale-unabhängig)
         $tz      = new DateTimeZone('Europe/Berlin');
         $today   = new DateTime('now', $tz);
         $dow     = (int)$today->format('N'); // 1=Mo, 7=So
         $montag  = (clone $today)->modify('-' . ($dow - 1) . ' days')->format('Y-m-d');
         $freitag = (clone $today)->modify('+' . (5 - $dow) . ' days')->format('Y-m-d');
 
-        // Alle Tage dieser Woche Mo–Fr mit Öffnungszeiten ODER is_closed-Flag holen
+        // Öffnungszeiten Mo–Fr
         $query   = $externe_db->prepare(
             "SELECT datum, start_time, end_time, is_closed
              FROM opening_hours
@@ -69,7 +69,96 @@ if (!function_exists('opening_hours_pixel_perfect')) {
         $lat = 52.1750;
         $lon = 13.1500;
 
+        // Anfängerkurs: nächste Wochenend-Tage mit aktiven Kursen
+        // MySQL DAYOFWEEK: 1=So, 7=Sa
+        $kursRows = $externe_db->get_results(
+            "SELECT datum, course1, course1_text, course2, course2_text
+             FROM opening_hours
+             WHERE datum >= CURDATE()
+               AND DAYOFWEEK(datum) IN (1, 7)
+               AND (course1 = 1 OR course2 = 1)
+             ORDER BY datum ASC
+             LIMIT 4"
+        );
+
         ob_start();
+
+        // CSS einmalig ausgeben
+        static $kurs_css_done = false;
+        if (!$kurs_css_done) {
+            $kurs_css_done = true;
+            echo '<style>
+.kurs-block {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.10);
+}
+.kurs-hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--clr-green, #679467);
+}
+.kurs-hdr-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+.kurs-hdr-divider {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(103,148,103,.35), transparent);
+}
+.kurs-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.kurs-row:last-child { border-bottom: none; }
+.kurs-tag {
+    width: 2.2em;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--clr-text-muted, #7a8a8a);
+    text-align: right;
+    flex-shrink: 0;
+    padding-right: .5em;
+}
+.kurs-sep {
+    font-size: 16px;
+    color: rgba(255,255,255,0.2);
+    padding: 0 .4em;
+    flex-shrink: 0;
+}
+.kurs-time {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--clr-white, #fff);
+    flex: 1;
+    letter-spacing: .03em;
+}
+.kurs-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: rgba(103,148,103,.12);
+    color: var(--clr-green, #679467);
+    border: 1px solid rgba(103,148,103,.30);
+    white-space: nowrap;
+    align-self: center;
+}
+</style>' . "\n";
+        }
+
         if ($results) {
             echo '<div class="oh-glass"><table class="oh-table">';
             foreach ($results as $row) {
@@ -81,7 +170,6 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                 $hasEnd     = !empty($row->end_time)   && $row->end_time   !== 'NULL';
 
                 if ($isClosed) {
-                    // Geschlossen-Zeile
                     echo '<tr class="geschlossen">';
                     echo '<td class="col-1-day">'   . esc_html($tag) . ':</td>';
                     echo '<td class="col-2-start" colspan="3" style="text-align:center;letter-spacing:.15em;font-size:28px;color:rgba(255,59,48,.7)">GESCHLOSSEN</td>';
@@ -90,32 +178,22 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                     continue;
                 }
 
-                if (!$hasStart) continue; // Kein Eintrag → überspringen
+                if (!$hasStart) continue;
 
-                // Startzeit: "HH:MM" aus DB-Wert (kann "HH:MM:SS" oder "HH:MM" sein)
-                $start = substr($row->start_time, 0, 5); // → "10:00"
-                // Nur Stunden anzeigen wenn :00 Minuten
-                if (substr($start, 2) === ':00') {
-                    $start = substr($start, 0, 2); // → "10"
-                }
+                $start = substr($row->start_time, 0, 5);
+                if (substr($start, 2) === ':00') $start = substr($start, 0, 2);
 
-                // Endzeit
                 if ($hasEnd) {
                     $end = substr($row->end_time, 0, 5);
-                    if (substr($end, 2) === ':00') {
-                        $end = substr($end, 0, 2);
-                    }
+                    if (substr($end, 2) === ':00') $end = substr($end, 0, 2);
                 } else {
-                    // Fallback: Sonnenuntergang
                     $sun_info = date_sun_info($timestamp, $lat, $lon);
                     $dt = new DateTime('@' . $sun_info['sunset']);
                     $dt->setTimezone($tz);
-                    $end = $dt->format('H'); // nur Stunde
+                    $end = $dt->format('H');
                 }
 
-                // Heute hervorheben
                 $isToday = ($row->datum === $today->format('Y-m-d'));
-
                 echo '<tr' . ($isToday ? ' class="today"' : '') . '>';
                 echo '<td class="col-1-day">'   . esc_html($tag)   . ':</td>';
                 echo '<td class="col-2-start">' . esc_html($start) . '</td>';
@@ -124,8 +202,46 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                 echo '<td class="col-5-unit">UHR</td>';
                 echo '</tr>';
             }
-            echo '</table></div>';
+            echo '</table>';
+
+            // ── Anfängerkurs-Block ─────────────────────────────────────
+            if (!empty($kursRows)) {
+                echo '<div class="kurs-block">';
+                echo '<div class="kurs-hdr">';
+                echo   '<span class="kurs-hdr-icon">🏄</span>';
+                echo   '<span>Anfängerkurs</span>';
+                echo   '<span class="kurs-hdr-divider"></span>';
+                echo '</div>';
+
+                foreach ($kursRows as $k) {
+                    $ts  = strtotime($k->datum);
+                    $dn  = (int)date('N', $ts); // 6=Sa, 7=So
+                    $tag = ($dn === 6) ? 'Sa' : 'So';
+
+                    if ((int)$k->course1 === 1 && !empty($k->course1_text)) {
+                        echo '<div class="kurs-row">';
+                        echo '<span class="kurs-tag">' . esc_html($tag) . '</span>';
+                        echo '<span class="kurs-sep">|</span>';
+                        echo '<span class="kurs-time">' . esc_html($k->course1_text) . '</span>';
+                        echo '<span class="kurs-badge">Kurs 1</span>';
+                        echo '</div>';
+                    }
+                    if ((int)$k->course2 === 1 && !empty($k->course2_text)) {
+                        echo '<div class="kurs-row">';
+                        echo '<span class="kurs-tag">' . esc_html($tag) . '</span>';
+                        echo '<span class="kurs-sep">|</span>';
+                        echo '<span class="kurs-time">' . esc_html($k->course2_text) . '</span>';
+                        echo '<span class="kurs-badge">Kurs 2</span>';
+                        echo '</div>';
+                    }
+                }
+
+                echo '</div>'; // .kurs-block
+            }
+
+            echo '</div>'; // .oh-glass
         }
+
         return ob_get_clean();
     }
     add_shortcode('oeffnungszeiten', 'opening_hours_pixel_perfect');
