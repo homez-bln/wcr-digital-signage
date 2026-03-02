@@ -27,18 +27,8 @@ function wcr_ds_defaults() {
         'clr_bg_dark'       => '#0d0d0d',
         'clr_bg_glass'      => 'rgba(10,14,24,0.65)',
         'font_family'       => 'Segoe UI',
-        'font_size_product' => '2',
-        'font_size_price'   => '2',
-        'font_size_header'  => '0.72',
-        'font_size_subhead' => '2',
-        'letter_spacing'    => '6',
         'viewport_w'        => '1920',
         'viewport_h'        => '1080',
-        'radius_card'       => '18',
-        'radius_large'      => '26',
-        'blur_amount'       => '20',
-        'header_height'     => '96',
-        'padding_global'    => '40',
     );
 }
 
@@ -77,9 +67,7 @@ function wcr_ds_register_settings() {
 }
 
 /* ====================================================
-   ADMIN MENU – Hauptmenue (gleiche Ebene wie Elementor)
-   Position 59 = direkt unter Elementor (58)
-   Icon: dashicons-desktop (Bildschirm-Symbol)
+   ADMIN MENU
 ==================================================== */
 add_action( 'admin_menu', 'wcr_ds_add_menu' );
 function wcr_ds_add_menu() {
@@ -107,12 +95,8 @@ function wcr_ds_add_menu() {
 ==================================================== */
 add_action( 'admin_init', 'wcr_ds_reset_handler' );
 function wcr_ds_reset_handler() {
-    if ( ! isset( $_POST['wcr_ds_reset'] ) ) {
-        return;
-    }
-    if ( ! current_user_can( 'manage_options' ) ) {
-        return;
-    }
+    if ( ! isset( $_POST['wcr_ds_reset'] ) ) return;
+    if ( ! current_user_can( 'manage_options' ) ) return;
     check_admin_referer( 'wcr_ds_reset_action', 'wcr_ds_reset_nonce' );
     delete_option( 'wcr_ds_options' );
     wp_safe_redirect( admin_url( 'admin.php?page=wcr-ds-settings&wcr_reset=1' ) );
@@ -123,9 +107,7 @@ function wcr_ds_reset_handler() {
    ADMIN SEITE RENDERN
 ==================================================== */
 function wcr_ds_render_page() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        return;
-    }
+    if ( ! current_user_can( 'manage_options' ) ) return;
 
     $d = wcr_ds_defaults();
 
@@ -162,22 +144,9 @@ function wcr_ds_render_page() {
         'Ubuntu'     => 'Ubuntu',
     );
 
-    $typo_fields = array(
-        'font_size_product' => array( 'Produktname (rem)',    '1',   '4',  '0.1'  ),
-        'font_size_price'   => array( 'Preis (rem)',          '1',   '4',  '0.1'  ),
-        'font_size_header'  => array( 'Header Label (rem)',   '0.5', '2',  '0.01' ),
-        'font_size_subhead' => array( 'Kategorie (rem)',      '1',   '4',  '0.1'  ),
-        'letter_spacing'    => array( 'Letter-Spacing (px)',  '0',   '20', '1'    ),
-    );
-
     $layout_fields = array(
-        'viewport_w'     => array( 'Viewport Breite (px)',   '800', '3840', '1' ),
-        'viewport_h'     => array( 'Viewport Hoehe (px)',    '600', '2160', '1' ),
-        'radius_card'    => array( 'Border-Radius Karte (px)','0',  '40',   '1' ),
-        'radius_large'   => array( 'Border-Radius Gross (px)','0',  '60',   '1' ),
-        'blur_amount'    => array( 'Glassmorphism Blur (px)', '0',  '60',   '1' ),
-        'header_height'  => array( 'Header Hoehe (px)',      '40',  '200',  '1' ),
-        'padding_global' => array( 'Globales Padding (px)',   '0',  '120',  '1' ),
+        'viewport_w' => array( 'Viewport Breite (px)', '800', '3840', '1' ),
+        'viewport_h' => array( 'Viewport Hoehe (px)',  '600', '2160', '1' ),
     );
 
     $shortcodes = array(
@@ -192,7 +161,7 @@ function wcr_ds_render_page() {
 
     echo '<div class="wrap">';
     echo '<h1 style="display:flex;align-items:center;gap:10px;">&#128250; WCR Digital Signage &ndash; Einstellungen</h1>';
-    echo '<p style="color:#555;margin-bottom:20px;">Alle Aenderungen wirken sofort auf alle 7 DS-Seiten.</p>';
+    echo '<p style="color:#555;margin-bottom:20px;">Alle Aenderungen wirken sofort auf alle DS-Seiten.</p>';
 
     if ( isset( $_GET['wcr_reset'] ) ) {
         echo '<div class="notice notice-success is-dismissible"><p>Einstellungen auf Standard zurueckgesetzt.</p></div>';
@@ -213,7 +182,6 @@ function wcr_ds_render_page() {
     }
     echo '</div>';
 
-    // Hauptformular
     echo '<form method="post" action="options.php">';
     settings_fields( 'wcr_ds_group' );
 
@@ -237,8 +205,8 @@ function wcr_ds_render_page() {
     echo '</td></tr>';
     echo '</tbody></table>';
 
-    // TYPOGRAFIE
-    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;">&#128300; Typografie</h2>';
+    // SCHRIFTART
+    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;">&#128300; Schriftart</h2>';
     echo '<table class="form-table"><tbody>';
     $cur_font = wcr_ds_get( 'font_family' );
     echo '<tr><th scope="row">Schriftart</th><td>';
@@ -251,17 +219,10 @@ function wcr_ds_render_page() {
     echo '<div id="wcr_font_prev" style="margin-top:8px;padding:8px 14px;background:#111;color:#eee;border-radius:5px;font-size:1.3rem;font-family:' . esc_attr( $cur_font ) . ';display:inline-block;">WCR Signage &ndash; 12,50 &euro;</div>';
     echo '<p style="color:#888;font-size:0.8em;">Google Fonts werden automatisch geladen.</p>';
     echo '</td></tr>';
-    foreach ( $typo_fields as $key => $cfg ) {
-        $val = wcr_ds_get( $key );
-        echo '<tr><th scope="row">' . esc_html( $cfg[0] ) . '</th><td>';
-        echo '<input type="number" name="wcr_ds_options[' . esc_attr( $key ) . ']" value="' . esc_attr( $val ) . '" min="' . esc_attr( $cfg[1] ) . '" max="' . esc_attr( $cfg[2] ) . '" step="' . esc_attr( $cfg[3] ) . '" style="width:80px;padding:3px 6px;">';
-        echo '&nbsp;<span style="color:#aaa;font-size:0.82em;">Standard: <code>' . esc_html( $d[ $key ] ) . '</code></span>';
-        echo '</td></tr>';
-    }
     echo '</tbody></table>';
 
-    // LAYOUT
-    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;">&#128207; Layout &amp; Abstaende</h2>';
+    // VIEWPORT
+    echo '<h2 style="border-top:1px solid #ddd;padding-top:14px;">&#128207; Viewport</h2>';
     echo '<table class="form-table"><tbody>';
     foreach ( $layout_fields as $key => $cfg ) {
         $val = wcr_ds_get( $key );
@@ -335,44 +296,25 @@ function wcr_ds_dynamic_css() {
     $bgd = wcr_ds_get( 'clr_bg_dark' );
     $bgg = wcr_ds_get( 'clr_bg_glass' );
     $ff  = wcr_ds_get( 'font_family' );
-    $fsp = wcr_ds_get( 'font_size_product' );
-    $fsc = wcr_ds_get( 'font_size_price' );
-    $fsh = wcr_ds_get( 'font_size_header' );
-    $fss = wcr_ds_get( 'font_size_subhead' );
-    $ls  = wcr_ds_get( 'letter_spacing' );
     $vw  = wcr_ds_get( 'viewport_w' );
     $vh  = wcr_ds_get( 'viewport_h' );
-    $rc  = wcr_ds_get( 'radius_card' );
-    $rl  = wcr_ds_get( 'radius_large' );
-    $bl  = wcr_ds_get( 'blur_amount' );
-    $hh  = wcr_ds_get( 'header_height' );
-    $pg  = wcr_ds_get( 'padding_global' );
 
-    // Aktives Theme lesen (gesetzt via WCR Backend)
     $theme = get_option( 'wcr_ds_theme', 'glass' );
     if ( ! in_array( $theme, array( 'glass', 'flat', 'aurora' ), true ) ) {
         $theme = 'glass';
     }
 
-    // Blur: bei flat/aurora kein Blur (override)
-    $blur_css = ( $theme === 'glass' && (int)$bl > 0 )
-        ? 'blur(' . esc_attr( $bl ) . 'px) saturate(160%)'
-        : 'none';
-
-    // Google Font laden falls nötig
+    // Google Font laden
     $sys = array( 'Segoe UI', 'Arial', 'Helvetica', 'Georgia', 'Verdana', 'Tahoma' );
     if ( ! in_array( $ff, $sys, true ) ) {
         $gf = 'https://fonts.googleapis.com/css2?family=' . rawurlencode( $ff ) . ':wght@400;600;700;800;900&display=swap';
         echo '<link rel="stylesheet" href="' . esc_url( $gf ) . '">' . "\n";
     }
 
-    // Farb-Hilfsfunktionen
     $green_rgb = wcr_ds_hex_to_rgb( $g );
     $blue_rgb  = wcr_ds_hex_to_rgb( $b );
 
     echo '<style id="wcr-ds-css">' . "\n";
-
-    // ── CSS-Variablen (:root) ──────────────────────────────────────
     echo ':root {' . "\n";
     echo '  --clr-green:         ' . esc_attr( $g )   . ";\n";
     echo '  --clr-green-dim:     rgba(' . $green_rgb . ',0.70)' . ";\n";
@@ -386,37 +328,17 @@ function wcr_ds_dynamic_css() {
     echo '  --clr-bg-dark:       ' . esc_attr( $bgd ) . ";\n";
     echo '  --clr-border:        rgba(255,255,255,0.09)' . ";\n";
     echo '  --font-main:         \'' . esc_attr( $ff ) . '\', system-ui, sans-serif' . ";\n";
-    echo '  --font-size-product: ' . esc_attr( $fsp ) . "rem;\n";
-    echo '  --font-size-price:   ' . esc_attr( $fsc ) . "rem;\n";
-    echo '  --font-size-header:  ' . esc_attr( $fsh ) . "rem;\n";
-    echo '  --font-size-subhead: ' . esc_attr( $fss ) . "rem;\n";
-    echo '  --letter-spacing:    ' . esc_attr( $ls )  . "px;\n";
     echo '  --viewport-w:        ' . esc_attr( $vw )  . "px;\n";
     echo '  --viewport-h:        ' . esc_attr( $vh )  . "px;\n";
-    echo '  --radius-card:       ' . esc_attr( $rc )  . "px;\n";
-    echo '  --radius-large:      ' . esc_attr( $rl )  . "px;\n";
-    echo '  --blur-glass:        ' . $blur_css . ";\n";
-    echo '  --header-height:     ' . esc_attr( $hh )  . "px;\n";
-    echo '  --padding-global:    ' . esc_attr( $pg )  . "px;\n";
     echo '}' . "\n";
 
-    // ── Basis-Styles ───────────────────────────────────────────────
     echo 'html,body{width:var(--viewport-w);height:var(--viewport-h);font-family:var(--font-main);background:var(--clr-bg);color:var(--clr-text);}' . "\n";
     echo '.ds-dot      {background:var(--clr-green);box-shadow:0 0 10px var(--clr-green);}' . "\n";
     echo '.ds-live-dot {background:var(--clr-blue);box-shadow:0 0 10px var(--clr-blue);}' . "\n";
-    echo '.ds-header   {height:var(--header-height);padding:0 var(--padding-global);}' . "\n";
-    echo '.ds-header-inner{font-size:var(--font-size-header);letter-spacing:var(--letter-spacing);color:var(--clr-green);}' . "\n";
-    echo '.ds-head-global{font-size:var(--font-size-header);color:var(--clr-green);}' . "\n";
-    echo '.ds-hr       {background:linear-gradient(90deg,transparent,var(--clr-green),transparent);}' . "\n";
-    echo 'h3.ds-subhead{font-size:var(--font-size-subhead);color:var(--clr-green);}' . "\n";
-    echo '.produkt     {font-size:var(--font-size-product);color:var(--clr-text);}' . "\n";
-    echo '.preis       {font-size:var(--font-size-price);}' . "\n";
-    echo '.ds-card     {border-radius:var(--radius-large);}' . "\n";
 
-    // ── Theme-spezifische Overrides ────────────────────────────────
     if ( $theme === 'glass' ) {
-        echo '.glass{background:' . esc_attr( $bgg ) . ';backdrop-filter:var(--blur-glass);-webkit-backdrop-filter:var(--blur-glass);border-radius:var(--radius-card);}' . "\n";
-        echo '.k-card,.ds-card{backdrop-filter:var(--blur-glass);-webkit-backdrop-filter:var(--blur-glass);background:rgba(255,255,255,0.05);}' . "\n";
+        echo '.glass{background:' . esc_attr( $bgg ) . ';backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);border-radius:18px;}' . "\n";
+        echo '.k-card,.ds-card{backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);background:rgba(255,255,255,0.05);}' . "\n";
     } elseif ( $theme === 'flat' ) {
         echo '.glass,.k-card,.ds-card{background:' . esc_attr( $bgd ) . ';backdrop-filter:none;-webkit-backdrop-filter:none;}' . "\n";
         echo 'body::before{display:none;}' . "\n";
@@ -429,7 +351,6 @@ function wcr_ds_dynamic_css() {
     echo '</style>' . "\n";
 }
 
-// Hilfsfunktion: #RRGGBB → "R,G,B"
 if ( ! function_exists( 'wcr_ds_hex_to_rgb' ) ) {
     function wcr_ds_hex_to_rgb( string $hex ): string {
         $hex = ltrim( $hex, '#' );
@@ -507,7 +428,6 @@ function wcr_sc_essen( $atts ) {
 
 function wcr_sc_kaffee( $atts ) {
     wp_enqueue_script( 'wcr-kaffee', plugin_dir_url( __FILE__ ) . 'assets/js/wcr-kaffee.js', array(), '3.1.0', true );
-
     $out  = '<div class="ds-header">';
     $out .= '<div class="ds-header-line"></div>';
     $out .= '<div class="ds-header-inner"><div class="ds-dot"></div>Kaffeekarte<div class="ds-dot"></div></div>';
@@ -520,70 +440,35 @@ function wcr_sc_kaffee( $atts ) {
 function wcr_sc_windmap( $atts ) {
     wcr_ds_load_leaflet();
     wp_enqueue_script( 'wcr-windmap', plugin_dir_url( __FILE__ ) . 'assets/js/wcr-windmap.js', array( 'leaflet-js' ), '3.1.0', true );
-
     $out  = '<div id="wcr-windmap-wrap">' . "\n";
-
-    // Karte + Canvas
     $out .= '<div id="map"></div>' . "\n";
     $out .= '<canvas id="wind-canvas"></canvas>' . "\n";
     $out .= '<canvas id="gust-canvas"></canvas>' . "\n";
-
-    // Spot Header
     $out .= '<div class="glass" id="spot-header">';
     $out .= '<div><div class="ds-live-dot"></div></div>';
     $out .= '<div><div class="spot-name">📍 Wake &amp; Camp Ruhlsdorf</div>';
     $out .= '<div class="spot-coords">52.8213° N · 13.5754° E</div></div>';
     $out .= '</div>' . "\n";
-
-    // Zeitkarte
     $out .= '<div class="glass" id="time-card">';
     $out .= '<div id="tc-forecast">–</div>';
     $out .= '<div id="tc-realtime">–</div>';
     $out .= '<div id="tc-badge">Jetzt</div>';
     $out .= '</div>' . "\n";
-
-    // Rechtes Panel – Knoten
     $out .= '<div id="right-panel">';
-    $out .= '<div id="kn-box">';
-    $out .= '<div class="kn-icon">💨</div>';
-    $out .= '<div class="kn-val" id="kn-speed">–</div>';
-    $out .= '<div class="kn-unit">Knoten</div>';
-    $out .= '<div class="kn-label">Windstärke</div>';
-    $out .= '</div>';
-
-    // Windrose
+    $out .= '<div id="kn-box"><div class="kn-icon">💨</div><div class="kn-val" id="kn-speed">–</div><div class="kn-unit">Knoten</div><div class="kn-label">Windstärke</div></div>';
     $out .= '<div id="windrose-box">';
     $out .= '<svg width="100" height="100" viewBox="0 0 100 100">';
     $out .= '<circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>';
-    $out .= '<text x="50" y="12"  text-anchor="middle" fill="#7a9abc" font-size="11">N</text>';
-    $out .= '<text x="50" y="96"  text-anchor="middle" fill="#7a9abc" font-size="11">S</text>';
-    $out .= '<text x="92" y="54"  text-anchor="middle" fill="#7a9abc" font-size="11">O</text>';
-    $out .= '<text x="8"  y="54"  text-anchor="middle" fill="#7a9abc" font-size="11">W</text>';
-    $out .= '<g id="wr-arrow" transform="rotate(0 50 50)">';
-    $out .= '<polygon points="50,14 55,42 50,38 45,42" fill="#00c8ff" opacity="0.9"/>';
-    $out .= '<polygon points="50,86 55,58 50,62 45,58" fill="rgba(0,200,255,0.2)"/>';
-    $out .= '</g></svg>';
-    $out .= '<div id="wr-degs">–°</div>';
-    $out .= '<div id="wr-label">Windrichtung</div>';
-    $out .= '</div>';
+    $out .= '<text x="50" y="12" text-anchor="middle" fill="#7a9abc" font-size="11">N</text>';
+    $out .= '<text x="50" y="96" text-anchor="middle" fill="#7a9abc" font-size="11">S</text>';
+    $out .= '<text x="92" y="54" text-anchor="middle" fill="#7a9abc" font-size="11">O</text>';
+    $out .= '<text x="8"  y="54" text-anchor="middle" fill="#7a9abc" font-size="11">W</text>';
+    $out .= '<g id="wr-arrow" transform="rotate(0 50 50)"><polygon points="50,14 55,42 50,38 45,42" fill="#00c8ff" opacity="0.9"/><polygon points="50,86 55,58 50,62 45,58" fill="rgba(0,200,255,0.2)"/></g>';
+    $out .= '</svg><div id="wr-degs">–°</div><div id="wr-label">Windrichtung</div>';
+    $out .= '</div></div>' . "\n";
+    $out .= '<div id="timeline"><div id="tl-current-time"><span id="tl-label-text">–</span><span id="tl-delta"></span></div>';
+    $out .= '<div id="tl-track-wrap"><div id="tl-labels"></div><div id="tl-rail"><div id="tl-fill"></div><div id="tl-cursor"></div></div></div></div>' . "\n";
     $out .= '</div>' . "\n";
-
-    // Timeline
-    $out .= '<div id="timeline">';
-    $out .= '<div id="tl-current-time">';
-    $out .= '<span id="tl-label-text">–</span>';
-    $out .= '<span id="tl-delta"></span>';
-    $out .= '</div>';
-    $out .= '<div id="tl-track-wrap">';
-    $out .= '<div id="tl-labels"></div>';
-    $out .= '<div id="tl-rail">';
-    $out .= '<div id="tl-fill"></div>';
-    $out .= '<div id="tl-cursor"></div>';
-    $out .= '</div>';
-    $out .= '</div>';
-    $out .= '</div>' . "\n";
-
-    $out .= '</div>' . "\n"; // #wcr-windmap-wrap
     return $out;
 }
 
