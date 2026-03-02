@@ -1,6 +1,9 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// Internes Secret für BE → WP Kommunikation
+define('WCR_DS_API_SECRET', 'WCR_DS_2026');
+
 add_action('rest_api_init', function() {
 
     // ── Alle Drinks ──
@@ -115,14 +118,11 @@ add_action('rest_api_init', function() {
     ]);
 
     // ── Single Item by ID ──
-    // FIX: Fehlende DB-Prüfung – wenn get_ionos_db_connection() false zurückgibt,
-    // würde der Code auf false->get_row() crashen statt einen sauberen Fehler zu liefern.
     register_rest_route('wakecamp/v1', '/item/(?P<id>[0-9]+)', [
         'methods'             => 'GET',
         'callback'            => function($req) {
             $db = get_ionos_db_connection();
             if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
-
             $id       = (int) $req['id'];
             $tabellen = ['food', 'drinks', 'cable', 'camping', 'extra', 'ice'];
             foreach ($tabellen as $tabelle) {
@@ -149,6 +149,66 @@ add_action('rest_api_init', function() {
             ];
         },
         'permission_callback' => '__return_true',
+    ]);
+
+    // ────────────────────────────────────────────────────────────────
+    // ── DS-Settings (BE-Brücke) ──────────────────────────────────────
+    // GET  → Einstellungen lesen (öffentlich, für Debugging)
+    // POST → Einstellungen schreiben (nur mit internem Secret)
+    // ────────────────────────────────────────────────────────────────
+    register_rest_route('wakecamp/v1', '/ds-settings', [
+        [
+            'methods'             => 'GET',
+            'callback'            => function() {
+                return rest_ensure_response([
+                    'options' => get_option('wcr_ds_options', []),
+                    'theme'   => get_option('wcr_ds_theme', 'glass'),
+                ]);
+            },
+            'permission_callback' => '__return_true',
+        ],
+        [
+            'methods'             => 'POST',
+            'callback'            => function(WP_REST_Request $req) {
+                // Secret prüfen
+                if (($req->get_param('wcr_secret') ?? '') !== WCR_DS_API_SECRET) {
+                    return new WP_Error('forbidden', 'Nicht autorisiert', ['status' => 403]);
+                }
+
+                $action = $req->get_param('action') ?? '';
+
+                if ($action === 'save') {
+                    $opts = $req->get_param('options');
+                    if (is_array($opts)) {
+                        $allowed = ['clr_green','clr_blue','clr_white','clr_text','clr_muted',
+                                    'clr_bg','clr_bg_dark','clr_bg_glass','font_family',
+                                    'viewport_w','viewport_h'];
+                        $clean = [];
+                        foreach ($allowed as $k) {
+                            if (isset($opts[$k])) {
+                                $clean[$k] = sanitize_text_field((string)$opts[$k]);
+                            }
+                        }
+                        update_option('wcr_ds_options', $clean);
+                        // Transient-Cache leeren
+                        global $wpdb;
+                        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient%wcr%'");
+                    }
+                } elseif ($action === 'reset') {
+                    update_option('wcr_ds_options', wcr_ds_defaults());
+                } elseif ($action === 'theme') {
+                    $theme = sanitize_text_field($req->get_param('theme') ?? '');
+                    if (in_array($theme, ['glass', 'flat', 'aurora'], true)) {
+                        update_option('wcr_ds_theme', $theme);
+                    }
+                } else {
+                    return new WP_Error('invalid_action', 'Unbekannte Action', ['status' => 400]);
+                }
+
+                return rest_ensure_response(['ok' => true, 'action' => $action]);
+            },
+            'permission_callback' => '__return_true',
+        ],
     ]);
 
 });
