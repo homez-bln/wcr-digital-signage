@@ -1,40 +1,30 @@
 <?php
 /**
  * ctrl/ds-settings.php — DS Zentraler Controller v3
- * Theme-Switcher + Farben + Typografie + Layout in einer Seite.
- * Schreibt direkt in wp_options (wcr_ds_theme + wcr_ds_options).
+ * Theme-Switcher + Farben + Schriftart in einer Seite.
  */
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
 wcr_require('view_ds');
 
-// ── Konfiguration ─────────────────────────────────────────────
 $THEMES = [
-    'glass'  => ['icon'=>'🪟', 'name'=>'Glass',  'sub'=>'Glassmorphism',    'desc'=>'Blur-Effekte, frosted Cards, subtile Tiefe durch Transparenz'],
-    'flat'   => ['icon'=>'▪',  'name'=>'Flat',   'sub'=>'Modern Flat',      'desc'=>'Kein Blur, solide Flächen, scharfe Kanten — klares Minimaldesign'],
-    'aurora' => ['icon'=>'🌌', 'name'=>'Aurora', 'sub'=>'Aurora Gradient',  'desc'=>'Animierter Gradient-Mesh Hintergrund, Farb-Borders pro Karte'],
+    'glass'  => ['icon'=>'🪟', 'name'=>'Glass',  'sub'=>'Glassmorphism',   'desc'=>'Blur-Effekte, frosted Cards, subtile Tiefe durch Transparenz'],
+    'flat'   => ['icon'=>'▪',  'name'=>'Flat',   'sub'=>'Modern Flat',     'desc'=>'Kein Blur, solide Flächen, scharfe Kanten — klares Minimaldesign'],
+    'aurora' => ['icon'=>'🌌', 'name'=>'Aurora', 'sub'=>'Aurora Gradient', 'desc'=>'Animierter Gradient-Mesh Hintergrund, Farb-Borders pro Karte'],
 ];
 
 $DEFAULTS = [
-    'clr_green'         => '#679467',
-    'clr_blue'          => '#019ee3',
-    'clr_white'         => '#ffffff',
-    'clr_text'          => '#eeeeee',
-    'clr_muted'         => '#7a8a8a',
-    'clr_bg'            => '#080808',
-    'clr_bg_dark'       => '#0d0d0d',
-    'clr_bg_glass'      => 'rgba(10,14,24,0.65)',
-    'font_family'       => 'Segoe UI',
-    'font_size_product' => '2',
-    'font_size_price'   => '2',
-    'font_size_header'  => '0.72',
-    'font_size_subhead' => '2',
-    'letter_spacing'    => '6',
-    'radius_card'       => '18',
-    'radius_large'      => '26',
-    'blur_amount'       => '20',
-    'header_height'     => '96',
-    'padding_global'    => '40',
+    'clr_green'    => '#679467',
+    'clr_blue'     => '#019ee3',
+    'clr_white'    => '#ffffff',
+    'clr_text'     => '#eeeeee',
+    'clr_muted'    => '#7a8a8a',
+    'clr_bg'       => '#080808',
+    'clr_bg_dark'  => '#0d0d0d',
+    'clr_bg_glass' => 'rgba(10,14,24,0.65)',
+    'font_family'  => 'Segoe UI',
+    'viewport_w'   => '1920',
+    'viewport_h'   => '1080',
 ];
 
 $FONTS = ['Segoe UI','Inter','Roboto','Montserrat','Poppins','Oswald','Raleway','Open Sans','Lato','Ubuntu'];
@@ -47,22 +37,6 @@ $COLORS = [
     'clr_muted'   => ['Grau',              'Labels, Nebeninfos'],
     'clr_bg'      => ['Hintergrund',        'Body-Hintergrund'],
     'clr_bg_dark' => ['Hintergrund Dunkel', 'Karten-Hintergrund'],
-];
-
-$TYPO = [
-    'font_size_product' => ['Produktname',    '1',   '4',   '0.1',  'rem'],
-    'font_size_price'   => ['Preis',          '1',   '4',   '0.1',  'rem'],
-    'font_size_header'  => ['Header Label',   '0.5', '2',   '0.01', 'rem'],
-    'font_size_subhead' => ['Kategorie',      '1',   '4',   '0.1',  'rem'],
-    'letter_spacing'    => ['Letter-Spacing', '0',   '20',  '1',    'px'],
-];
-
-$LAYOUT = [
-    'radius_card'    => ['Border-Radius Karte', '0',  '40',  '1', 'px'],
-    'radius_large'   => ['Border-Radius Groß',  '0',  '60',  '1', 'px'],
-    'blur_amount'    => ['Blur-Stärke (Glass)',  '0',  '60',  '1', 'px'],
-    'header_height'  => ['Header Höhe',         '40', '200', '1', 'px'],
-    'padding_global' => ['Globales Padding',     '0',  '120', '1', 'px'],
 ];
 
 // ── DB-Hilfsfunktionen ────────────────────────────────────────
@@ -112,7 +86,6 @@ $msgType = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim($_POST['action'] ?? '');
 
-    // Theme aktivieren
     if ($action === 'theme') {
         $t = trim($_POST['theme'] ?? '');
         if (isset($THEMES[$t])) {
@@ -120,16 +93,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg     = 'Theme „' . $THEMES[$t]['name'] . '" aktiviert — alle DS-Screens zeigen sofort den neuen Stil.';
                 $msgType = 'ok';
             } else {
-                $msg     = 'Fehler beim Speichern des Themes.';
-                $msgType = 'error';
+                $msg = 'Fehler beim Speichern des Themes.'; $msgType = 'error';
             }
         }
     }
 
-    // Farben + Typografie + Layout speichern
     if ($action === 'save') {
         $new = [];
-
         foreach (array_keys($COLORS) as $k) {
             $v = trim($_POST[$k] ?? '');
             $new[$k] = (preg_match('/^#[0-9a-fA-F]{3,8}$/', $v) || preg_match('/^rgba?\([\d,.\s]+\)$/', $v))
@@ -137,37 +107,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $glass = trim($_POST['clr_bg_glass'] ?? '');
         $new['clr_bg_glass'] = preg_match('/^rgba?\([\d,.\s]+\)$/', $glass) ? $glass : $DEFAULTS['clr_bg_glass'];
-
         $new['font_family'] = in_array($_POST['font_family'] ?? '', $FONTS, true)
             ? $_POST['font_family'] : $DEFAULTS['font_family'];
 
-        foreach ($TYPO as $k => [$l,$min,$max,$step,$u]) {
-            $v = (float)($_POST[$k] ?? $DEFAULTS[$k]);
-            $new[$k] = (string)max((float)$min, min((float)$max, $v));
-        }
-        foreach ($LAYOUT as $k => [$l,$min,$max,$step,$u]) {
-            $v = (int)($_POST[$k] ?? $DEFAULTS[$k]);
-            $new[$k] = (string)max((int)$min, min((int)$max, $v));
-        }
-
         if (dsc_save_opts($pdo, array_merge($DEFAULTS, $new))) {
-            $msg     = 'Gespeichert — Änderungen sind sofort auf allen DS-Seiten aktiv.';
-            $msgType = 'ok';
+            $msg = 'Gespeichert — Änderungen sind sofort auf allen DS-Seiten aktiv.'; $msgType = 'ok';
             try { $pdo->exec("DELETE FROM wp_options WHERE option_name LIKE '_transient%wcr%'"); } catch (Exception $e) {}
         } else {
-            $msg     = 'Fehler beim Speichern.';
-            $msgType = 'error';
+            $msg = 'Fehler beim Speichern.'; $msgType = 'error';
         }
     }
 
-    // Reset
     if ($action === 'reset') {
         if (dsc_save_opts($pdo, $DEFAULTS)) {
-            $msg     = 'Einstellungen auf Standard zurückgesetzt.';
-            $msgType = 'ok';
+            $msg = 'Einstellungen auf Standard zurückgesetzt.'; $msgType = 'ok';
         } else {
-            $msg     = 'Fehler beim Zurücksetzen.';
-            $msgType = 'error';
+            $msg = 'Fehler beim Zurücksetzen.'; $msgType = 'error';
         }
     }
 }
@@ -177,7 +132,6 @@ $activeTheme = dsc_get_theme($pdo);
 if (!function_exists('ov')) {
     function ov(array $o, string $k): string { return htmlspecialchars($o[$k] ?? ''); }
 }
-// DB-Schreib-Test
 $dbWritable = true;
 try {
     $t = $pdo->prepare("SELECT COUNT(*) FROM wp_options WHERE option_name IN ('wcr_ds_options','wcr_ds_theme')");
@@ -206,16 +160,13 @@ try {
 <div class="status-banner <?= $msgType ?>"><?= htmlspecialchars($msg) ?></div>
 <?php endif; ?>
 <?php if (!$dbWritable): ?>
-<div class="status-banner error">⚠️ Datenbankverbindung fehlerhaft — Einstellungen können nicht gespeichert werden. Bitte Seite neu laden.</div>
+<div class="status-banner error">⚠️ Datenbankverbindung fehlerhaft — Einstellungen können nicht gespeichert werden.</div>
 <?php endif; ?>
 
-<!-- ═══════════════════════════════════════
-     BLOCK 1 — THEME
-     ═══════════════════════════════════════ -->
+<!-- BLOCK 1 — THEME -->
 <div class="dsc-block">
   <div class="dsc-block-title">🎨 Theme wählen</div>
   <div class="dsc-block-sub">Bestimmt das visuelle Erscheinungsbild aller DS-Seiten</div>
-
   <div class="theme-grid">
     <?php foreach ($THEMES as $key => $t):
       $isActive = ($key === $activeTheme);
@@ -227,23 +178,17 @@ try {
       <input type="hidden" name="action" value="theme">
       <input type="hidden" name="theme"  value="<?= $key ?>">
       <button type="submit" class="theme-card <?= $isActive ? 'theme-card--on' : '' ?>">
-
-        <!-- Mini-Vorschau -->
         <div class="tc-preview" style="background:<?= $bg ?>; font-family:'Segoe UI',system-ui">
           <?php if ($key==='aurora'): ?>
           <div style="position:absolute;inset:0;background:radial-gradient(ellipse 65% 55% at 8% 15%,rgba(1,158,227,.28) 0%,transparent 58%),radial-gradient(ellipse 50% 50% at 92% 85%,rgba(103,148,103,.22) 0%,transparent 54%);pointer-events:none"></div>
           <?php elseif ($key==='glass'): ?>
           <div style="position:absolute;inset:0;background:radial-gradient(ellipse 65% 65% at 15% 50%,rgba(103,148,103,.10) 0%,transparent 68%);pointer-events:none"></div>
           <?php endif; ?>
-
-          <!-- Header -->
           <div style="position:relative;z-index:1;height:17%;display:flex;align-items:center;gap:5px;padding:0 7%;border-bottom:1px solid rgba(255,255,255,.05)">
             <div style="flex:1;height:1px;background:rgba(103,148,103,.4)"></div>
             <span style="font-size:5px;font-weight:700;letter-spacing:3px;white-space:nowrap;color:<?= $key==='aurora'?'#019ee3':'#679467' ?>">● WCR ●</span>
             <div style="flex:1;height:1px;background:rgba(103,148,103,.4)"></div>
           </div>
-
-          <!-- 3 Karten -->
           <div style="position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:4px 4%">
             <?php foreach(['Espresso','Latte','Cappuccino'] as $ci => $cn):
               $bar = $key==='aurora' ? ($ci%2===0 ? 'linear-gradient(90deg,#679467,#019ee3)' : 'linear-gradient(90deg,#019ee3,#679467)') : '#679467';
@@ -256,16 +201,12 @@ try {
             </div>
             <?php endforeach; ?>
           </div>
-
-          <!-- Liste -->
           <div style="position:relative;z-index:1;padding:3px 7%">
             <?php foreach(['Erdinger · 4,50 €','Corona · 4,00 €','Augustiner · 4,20 €'] as $li): ?>
             <div style="display:flex;justify-content:space-between;font-size:5px;color:rgba(238,238,238,.65);padding:1.5px 0"><?= $li ?></div>
             <?php endforeach; ?>
           </div>
         </div>
-
-        <!-- Info -->
         <div class="tc-info">
           <span class="tc-icon"><?= $t['icon'] ?></span>
           <div class="tc-text">
@@ -275,16 +216,13 @@ try {
           <?php if ($isActive): ?><span class="tc-badge">✓ Aktiv</span><?php endif; ?>
         </div>
         <div class="tc-desc"><?= $t['desc'] ?></div>
-
       </button>
     </form>
     <?php endforeach; ?>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════
-     BLOCK 2 — EINSTELLUNGEN + VORSCHAU
-     ═══════════════════════════════════════ -->
+<!-- BLOCK 2 — EINSTELLUNGEN + VORSCHAU -->
 <form method="POST" id="dsc-form">
 <input type="hidden" name="action" value="save">
 <div class="dsc-2col">
@@ -344,40 +282,10 @@ try {
       </div>
     </div>
 
-    <div class="dsc-block">
-      <div class="dsc-block-title">📐 Typografie</div>
-      <div class="sl-grid">
-        <?php foreach ($TYPO as $k => [$lbl,$min,$max,$step,$u]): ?>
-        <div class="sl-row">
-          <span class="sl-lbl"><?= htmlspecialchars($lbl) ?></span>
-          <input type="range" id="sl_<?= $k ?>" name="<?= $k ?>"
-                 min="<?= $min ?>" max="<?= $max ?>" step="<?= $step ?>" value="<?= ov($opts,$k) ?>"
-                 oninput="slUpd('<?= $k ?>','<?= $u ?>')">
-          <span class="sl-val" id="sv_<?= $k ?>"><?= ov($opts,$k) ?> <?= $u ?></span>
-        </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-
-    <div class="dsc-block">
-      <div class="dsc-block-title">📏 Layout</div>
-      <div class="sl-grid">
-        <?php foreach ($LAYOUT as $k => [$lbl,$min,$max,$step,$u]): ?>
-        <div class="sl-row">
-          <span class="sl-lbl"><?= htmlspecialchars($lbl) ?></span>
-          <input type="range" id="sl_<?= $k ?>" name="<?= $k ?>"
-                 min="<?= $min ?>" max="<?= $max ?>" step="<?= $step ?>" value="<?= ov($opts,$k) ?>"
-                 oninput="slUpd('<?= $k ?>','<?= $u ?>')">
-          <span class="sl-val" id="sv_<?= $k ?>"><?= ov($opts,$k) ?> <?= $u ?></span>
-        </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-
     <div class="dsc-actions">
       <button type="submit" class="btn-save">💾 Einstellungen speichern</button>
       <button type="button" class="btn-reset"
-              onclick="if(confirm('Alle Farben und Größen auf Standard zurücksetzen?'))document.getElementById('rst-form').submit()">
+              onclick="if(confirm('Alle Farben auf Standard zurücksetzen?'))document.getElementById('rst-form').submit()">
         ↩ Zurücksetzen
       </button>
     </div>
@@ -441,13 +349,10 @@ try {
 
 <form method="POST" id="rst-form" style="display:none"><input type="hidden" name="action" value="reset"></form>
 
-<!-- ═══════════════════════════════════════ STYLES ═══ -->
 <style>
 .dsc-block       { background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px;margin-bottom:20px; }
 .dsc-block-title { font-size:14px;font-weight:700;margin:0 0 3px; }
 .dsc-block-sub   { font-size:12px;color:var(--text-muted);margin:0 0 16px; }
-
-/* Theme Grid */
 .theme-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:14px; }
 .theme-card {
   all:unset;cursor:pointer;display:flex;flex-direction:column;
@@ -464,15 +369,11 @@ try {
 .tc-sub     { font-size:11px;color:var(--text-muted); }
 .tc-badge   { margin-left:auto;padding:3px 10px;border-radius:20px;background:rgba(52,199,89,.12);color:#1a7a30;border:1px solid rgba(52,199,89,.3);font-size:10px;font-weight:700;flex-shrink:0; }
 .tc-desc    { font-size:11px;color:var(--text-muted);padding:0 14px 12px;line-height:1.45; }
-
-/* 2-Spalten */
 .dsc-2col  { display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start;margin-top:20px; }
 .dsc-left  { display:flex;flex-direction:column; }
 .dsc-right { position:sticky;top:76px; }
 .dsc-preview-wrap { display:flex;flex-direction:column; }
 .prev-lbl  { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:5px; }
-
-/* Farben */
 .clr-grid  { display:flex;flex-direction:column;gap:9px; }
 .clr-row   { display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:8px;background:var(--bg-subtle); }
 .clr-row:hover { background:var(--border-light); }
@@ -485,27 +386,14 @@ try {
 .clr-desc  { font-size:11px;color:var(--text-muted);margin-top:1px; }
 .clr-hex   { width:100px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:monospace;font-size:12px;background:var(--bg-card);color:var(--text-main); }
 .clr-hex:focus { outline:none;border-color:var(--primary); }
-
-/* Font */
 .font-row  { display:flex;gap:12px;align-items:center; }
 .font-row select { padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card);color:var(--text-main); }
 .font-prev { flex:1;padding:11px 14px;background:#12121e;color:#eee;border-radius:8px;font-size:18px;text-align:center;transition:font-family .3s;overflow:hidden;white-space:nowrap; }
-
-/* Slider */
-.sl-grid   { display:flex;flex-direction:column;gap:13px; }
-.sl-row    { display:grid;grid-template-columns:160px 1fr 62px;gap:10px;align-items:center; }
-.sl-lbl    { font-size:13px;font-weight:500;color:var(--text-main); }
-.sl-val    { font-size:12px;font-weight:700;color:var(--primary);text-align:right;font-variant-numeric:tabular-nums; }
-input[type=range] { accent-color:var(--primary);cursor:pointer;width:100%; }
-
-/* Buttons */
 .dsc-actions { display:flex;gap:12px;padding-bottom:4px; }
 .btn-save  { flex:1;padding:13px;font-size:15px;font-weight:700;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;transition:opacity .18s; }
 .btn-save:hover { opacity:.86; }
 .btn-reset { padding:13px 16px;font-size:13px;font-weight:600;background:var(--bg-subtle);color:var(--text-main);border:1px solid var(--border);border-radius:10px;cursor:pointer; }
 .btn-reset:hover { background:#fff0f0;color:#c0392b;border-color:#ffd0cc; }
-
-/* Preview Screens */
 .pv-screen  { position:relative;width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;border:2px solid var(--border);box-shadow:var(--shadow); }
 .pv-portrait { aspect-ratio:9/16;max-height:220px;width:auto; }
 .pv-bg      { position:absolute;inset:0;z-index:0; }
@@ -529,12 +417,10 @@ input[type=range] { accent-color:var(--primary);cursor:pointer;width:100%; }
 .pv-oh-time { font-size:10px;font-weight:600;flex:1;text-align:center; }
 .pv-oh-unit { font-size:5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.5; }
 .pv-css     { background:#0d1117;color:#7ee787;font-size:9px;padding:10px 12px;border-radius:7px;overflow-x:auto;white-space:pre;line-height:1.6;max-height:160px;overflow-y:auto;margin:0; }
-
 @media(max-width:1200px) { .dsc-2col{grid-template-columns:1fr;} .dsc-right{position:static;} }
 @media(max-width:900px)  { .theme-grid{grid-template-columns:1fr;} }
 </style>
 
-<!-- ═══════════════════════════════════════ SCRIPT ═══ -->
 <script>
 var G = {
   green:   "<?= addslashes($opts['clr_green']) ?>",
@@ -546,21 +432,12 @@ var G = {
   bgDark:  "<?= addslashes($opts['clr_bg_dark']) ?>",
   bgGlass: "<?= addslashes($opts['clr_bg_glass']) ?>",
   font:    "<?= addslashes($opts['font_family']) ?>",
-  rc:      "<?= addslashes($opts['radius_card']) ?>",
-  blur:    "<?= addslashes($opts['blur_amount']) ?>",
-  prodSz:  <?= (float)$opts['font_size_product'] ?>,
-  priceSz: <?= (float)$opts['font_size_price'] ?>,
-  ls:      <?= (float)$opts['letter_spacing'] ?>,
 };
 var THEME = "<?= $activeTheme ?>";
 
 var KEY_MAP = {
   clr_green:'green', clr_blue:'blue', clr_white:'white',
   clr_text:'text', clr_muted:'muted', clr_bg:'bg', clr_bg_dark:'bgDark'
-};
-var SL_MAP = {
-  radius_card:'rc', blur_amount:'blur',
-  font_size_product:'prodSz', font_size_price:'priceSz', letter_spacing:'ls'
 };
 
 function syncClr(k, v) {
@@ -578,13 +455,6 @@ function syncClrTxt(k, v) {
     var cp = document.getElementById('cp_'+k);
     if (cp) cp.value = v;
   }
-  render();
-}
-function slUpd(k, u) {
-  var el = document.getElementById('sl_'+k);
-  if (!el) return;
-  document.getElementById('sv_'+k).textContent = el.value + ' ' + u;
-  if (SL_MAP[k]) G[SL_MAP[k]] = parseFloat(el.value);
   render();
 }
 function updFont(f) {
@@ -605,13 +475,9 @@ function h2r(hex, a) {
 
 function render() {
   var font  = "'"+G.font+"',system-ui,sans-serif";
-  var rc    = G.rc+'px';
-  var blur  = parseFloat(G.blur)>0 ? 'blur('+G.blur+'px) saturate(140%)' : 'none';
   var glass = THEME==='glass';
   var aurora = THEME==='aurora';
-  var flat  = THEME==='flat';
 
-  // BG
   var bg = document.getElementById('pv-bg');
   if (bg) {
     bg.style.background = G.bg;
@@ -622,7 +488,6 @@ function render() {
   var bgp = document.getElementById('pv-bg-p');
   if (bgp) { bgp.style.background = G.bg; bgp.style.backgroundImage = 'none'; }
 
-  // Header
   var hi = document.getElementById('pv-hi');
   if (hi) { hi.style.color = aurora ? G.blue : G.green; hi.style.fontFamily = font; }
   var dot = document.getElementById('pv-dot');
@@ -633,16 +498,10 @@ function render() {
     if (el) el.style.background = i===0 ? 'linear-gradient(90deg,transparent,'+c+'55)' : 'linear-gradient(90deg,'+c+'55,transparent)';
   });
 
-  // Cards
   for (var i=0;i<3;i++) {
     var card = document.getElementById('pc-'+i);
     var cardBg = glass ? 'rgba(255,255,255,0.06)' : (aurora ? h2r(G.bgDark,.92) : G.bgDark);
-    if (card) {
-      card.style.background = cardBg;
-      card.style.backdropFilter = blur;
-      card.style.webkitBackdropFilter = blur;
-      card.style.borderRadius = rc;
-    }
+    if (card) { card.style.background = cardBg; card.style.borderRadius = '5px'; }
     var bar = document.getElementById('pb-'+i);
     if (bar) bar.style.background = aurora
       ? (i%2===0 ? 'linear-gradient(90deg,'+G.green+','+G.blue+')' : 'linear-gradient(90deg,'+G.blue+','+G.green+')')
@@ -652,54 +511,38 @@ function render() {
     var cn = document.getElementById('pcn-'+i);
     if (cn) { cn.style.color=G.text; cn.style.fontFamily=font; }
     var cp = document.getElementById('pcp-'+i);
-    if (cp) { cp.style.color=G.white; cp.style.fontFamily=font; cp.style.fontSize=Math.max(6,G.priceSz*4.5)+'px'; }
+    if (cp) { cp.style.color=G.white; cp.style.fontFamily=font; }
   }
 
-  // List
   for (var j=0;j<3;j++) {
     var pn=document.getElementById('ppn-'+j), pp=document.getElementById('ppp-'+j);
-    if (pn) { pn.style.color=G.text; pn.style.fontFamily=font; pn.style.fontSize=Math.max(5,G.prodSz*4)+'px'; }
+    if (pn) { pn.style.color=G.text; pn.style.fontFamily=font; }
     if (pp) { pp.style.color=G.white; pp.style.fontFamily=font; }
   }
 
-  // Portrait
   var gl = document.getElementById('pv-glass');
   if (gl) {
     gl.style.background = glass
       ? 'radial-gradient(circle at top left,'+h2r(G.green,.24)+' 0%,'+h2r(G.blue,.14)+' 40%,rgba(0,0,0,.45) 100%)'
       : (aurora ? h2r(G.bgDark,.9) : G.bgDark);
-    gl.style.backdropFilter = blur;
-    gl.style.webkitBackdropFilter = blur;
-    gl.style.borderRadius = rc;
+    gl.style.borderRadius = '6px';
     gl.style.border = '1px solid '+(aurora ? h2r(G.blue,.22) : 'rgba(255,255,255,0.09)');
   }
   document.querySelectorAll('.pv-oh-day').forEach(function(el) { el.style.color=G.muted; });
   document.querySelectorAll('.pv-oh-time').forEach(function(el) { el.style.color=G.white; el.style.fontFamily=font; });
 
-  // CSS
   var out = document.getElementById('pv-css');
   if (out) out.textContent = ':root {\n'
-    + '  --clr-green:     '+G.green+';\n'
-    + '  --clr-blue:      '+G.blue+';\n'
-    + '  --clr-text:      '+G.text+';\n'
-    + '  --clr-text-muted:'+G.muted+';\n'
-    + '  --clr-bg:        '+G.bg+';\n'
-    + '  --radius-card:   '+rc+';\n'
-    + '  --blur-glass:    '+(parseFloat(G.blur)>0?'blur('+G.blur+'px)':'none')+';\n'
-    + '  --font-main:     '+font+';\n'
+    + '  --clr-green:  '+G.green+';\n'
+    + '  --clr-blue:   '+G.blue+';\n'
+    + '  --clr-text:   '+G.text+';\n'
+    + '  --clr-muted:  '+G.muted+';\n'
+    + '  --clr-bg:     '+G.bg+';\n'
+    + '  --font-main:  '+font+';\n'
     + '}';
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  var units = {radius_card:'px',radius_large:'px',blur_amount:'px',font_size_product:'rem',
-               font_size_price:'rem',font_size_header:'rem',font_size_subhead:'rem',
-               letter_spacing:'px',header_height:'px',padding_global:'px'};
-  Object.keys(units).forEach(function(k) {
-    var el = document.getElementById('sl_'+k);
-    if (el) el.addEventListener('input', function() { slUpd(k, units[k]); });
-  });
-  render();
-});
+document.addEventListener('DOMContentLoaded', function() { render(); });
 </script>
 
 <?php include __DIR__ . '/../inc/debug.php'; ?>
