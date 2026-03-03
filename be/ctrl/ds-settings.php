@@ -1,11 +1,11 @@
 <?php
 /**
- * ctrl/ds-settings.php — DS Zentraler Controller v5
+ * ctrl/ds-settings.php — DS Zentraler Controller v6
  * Schreiben + Lesen komplett über WP REST API (update_option / get_option).
  * PDO-User hat kein Schreibrecht auf wp_options — WP-Brücke löst das.
  */
 require_once __DIR__ . '/../inc/auth.php';
-require_once __DIR__ . '/../inc/db.php'; // nur für Auth/Menu benötigt
+require_once __DIR__ . '/../inc/db.php';
 wcr_require('view_ds');
 
 define('DSC_WP_API_BASE', 'https://wcr-webpage.de/wp-json/wakecamp/v1');
@@ -44,9 +44,6 @@ $COLORS = [
 
 // ── WP REST API Hilfsfunktionen ───────────────────────────────
 
-/**
- * cURL-Wrapper für alle REST-Calls
- */
 function dsc_curl(string $url, ?array $postData = null): array {
     $ch = curl_init($url);
     $opts = [
@@ -72,10 +69,6 @@ function dsc_curl(string $url, ?array $postData = null): array {
     ];
 }
 
-/**
- * Liest aktuelle Settings aus WP via GET /ds-settings
- * Gibt ['opts' => array, 'theme' => string] zurück.
- */
 function dsc_api_load(array $defaults): array {
     $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings');
     if (!$r['ok'] || !isset($r['json']['options'])) {
@@ -90,9 +83,6 @@ function dsc_api_load(array $defaults): array {
     return ['opts' => $opts, 'theme' => $theme];
 }
 
-/**
- * Schreibt Settings via POST /ds-settings (WP ruft update_option auf)
- */
 function dsc_api_save(array $payload): array {
     $r = dsc_curl(
         DSC_WP_API_BASE . '/ds-settings',
@@ -104,6 +94,27 @@ function dsc_api_save(array $payload): array {
     ];
 }
 
+/**
+ * Liest eine wp_option direkt via REST
+ */
+function dsc_get_option(string $key, $default = '') {
+    $r = dsc_curl(DSC_WP_API_BASE . '/options/' . urlencode($key) . '?wcr_secret=' . DSC_WP_SECRET);
+    if ($r['ok'] && isset($r['json']['value'])) return $r['json']['value'];
+    return $default;
+}
+
+/**
+ * Schreibt eine einzelne wp_option via REST
+ */
+function dsc_set_option(string $key, $value): bool {
+    $r = dsc_curl(DSC_WP_API_BASE . '/options', [
+        'wcr_secret' => DSC_WP_SECRET,
+        'key'        => $key,
+        'value'      => $value,
+    ]);
+    return $r['ok'] && !empty($r['json']['ok']);
+}
+
 if (!function_exists('ov')) {
     function ov(array $o, string $k): string { return htmlspecialchars($o[$k] ?? ''); }
 }
@@ -111,12 +122,13 @@ if (!function_exists('ov')) {
 // ── POST-Handler ──────────────────────────────────────────────
 $msg        = '';
 $msgType    = '';
-$savedOpts  = null;   // nach erfolgreichem Save: direkt verwenden ohne Re-Read
+$savedOpts  = null;
 $savedTheme = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim($_POST['action'] ?? '');
 
+    // ── Theme ────────────────────────────────────────────────
     if ($action === 'theme') {
         $t = trim($_POST['theme'] ?? '');
         if (isset($THEMES[$t])) {
@@ -132,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ── Farben / Font speichern ───────────────────────────────
     if ($action === 'save') {
         $new = [];
         foreach (array_keys($COLORS) as $k) {
@@ -143,24 +156,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new['clr_bg_glass'] = preg_match('/^rgba?\([\d,.\s]+\)$/', $glass) ? $glass : $DEFAULTS['clr_bg_glass'];
         $new['font_family']  = in_array($_POST['font_family'] ?? '', $FONTS, true)
             ? $_POST['font_family'] : $DEFAULTS['font_family'];
-
-        // Viewport: aus aktuellen WP-Werten übernehmen (nicht im Formular)
         $current = dsc_api_load($DEFAULTS);
         $new['viewport_w'] = $current['opts']['viewport_w'] ?? $DEFAULTS['viewport_w'];
         $new['viewport_h'] = $current['opts']['viewport_h'] ?? $DEFAULTS['viewport_h'];
-
         $toSave = array_merge($DEFAULTS, $new);
         $r = dsc_api_save(['action' => 'save', 'options' => $toSave]);
         if ($r['ok']) {
             $msg       = 'Gespeichert — Änderungen sind sofort auf allen DS-Seiten aktiv.';
             $msgType   = 'ok';
-            $savedOpts = $toSave; // direkt verwenden — kein Re-Read nötig
+            $savedOpts = $toSave;
         } else {
             $msg = 'Fehler beim Speichern: ' . $r['error'];
             $msgType = 'error';
         }
     }
 
+    // ── Reset ────────────────────────────────────────────────
     if ($action === 'reset') {
         $r = dsc_api_save(['action' => 'reset']);
         if ($r['ok']) {
@@ -172,12 +183,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msgType = 'error';
         }
     }
+
+    // ── Instagram Settings speichern ─────────────────────────
+    if ($action === 'ig_save') {
+        $ig_fields = [
+            'wcr_instagram_token'          => 'strval',
+            'wcr_instagram_user_id'        => 'strval',
+            'wcr_instagram_hashtags'       => 'strval',
+            'wcr_instagram_excluded'       => 'strval',
+            'wcr_instagram_location_label' => 'strval',
+            'wcr_instagram_cta_text'       => 'strval',
+            'wcr_instagram_qr_url'         => 'strval',
+            'wcr_instagram_max_age_value'  => 'intval',
+            'wcr_instagram_max_age_unit'   => 'strval',
+            'wcr_instagram_max_posts'      => 'intval',
+            'wcr_instagram_refresh'        => 'intval',
+            'wcr_instagram_new_hours'      => 'intval',
+            'wcr_instagram_video_pool'     => 'intval',
+            'wcr_instagram_video_count'    => 'intval',
+            'wcr_instagram_min_likes'      => 'intval',
+        ];
+        $ig_toggles = [
+            'wcr_instagram_use_tagged','wcr_instagram_use_hashtag','wcr_instagram_show_user',
+            'wcr_instagram_cta_active','wcr_instagram_qr_active','wcr_instagram_weekly_best',
+        ];
+        $payload = ['wcr_secret' => DSC_WP_SECRET, 'action' => 'ig_save', 'options' => []];
+        foreach ($ig_fields as $key => $fn) {
+            if (isset($_POST[$key])) $payload['options'][$key] = $fn($_POST[$key]);
+        }
+        foreach ($ig_toggles as $t) {
+            $payload['options'][$t] = isset($_POST[$t]) ? 1 : 0;
+        }
+        // Cache leeren mitschicken
+        $payload['options']['wcr_instagram_flush_cache'] = 1;
+
+        $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings', $payload);
+        if ($r['ok'] && !empty($r['json']['ok'])) {
+            $msg = '📸 Instagram-Einstellungen gespeichert & Cache geleert.';
+            $msgType = 'ok';
+        } else {
+            $msg = 'Fehler beim Speichern der Instagram-Einstellungen: ' . ($r['err'] ?: 'Unbekannt');
+            $msgType = 'error';
+        }
+    }
 }
 
-// Laden: nach erfolgreichem Save direkt die gespeicherten Werte nutzen,
-// sonst per WP REST API lesen.
+// ── Laden ─────────────────────────────────────────────────────
 if ($savedOpts !== null || $savedTheme !== null) {
-    // Wenn nur Theme geändert: Opts aus API nachladen
     $base        = dsc_api_load($DEFAULTS);
     $opts        = $savedOpts  ?? $base['opts'];
     $activeTheme = $savedTheme ?? $base['theme'];
@@ -186,6 +238,35 @@ if ($savedOpts !== null || $savedTheme !== null) {
     $opts        = $loaded['opts'];
     $activeTheme = $loaded['theme'];
 }
+
+// ── Instagram-Options aus WP lesen ────────────────────────────
+// (direkte REST-Abfrage via /options, Fallback auf Defaults)
+function ig_get(string $key, $default = '') {
+    static $cache = null;
+    if ($cache === null) {
+        $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings');
+        $cache = ($r['ok'] && isset($r['json']['instagram'])) ? $r['json']['instagram'] : [];
+    }
+    return $cache[$key] ?? $default;
+}
+
+// Token-Status prüfen (Live-Check)
+$ig_token   = ig_get('wcr_instagram_token', '');
+$ig_user_id = ig_get('wcr_instagram_user_id', '');
+$token_status = '';
+$token_class  = 'muted';
+if ($ig_token && $ig_user_id) {
+    $chk = dsc_curl("https://graph.instagram.com/me?fields=id,username&access_token={$ig_token}");
+    if ($chk['ok'] && !empty($chk['json']['id'])) {
+        $token_status = '✅ Verbunden als @' . ($chk['json']['username'] ?? $chk['json']['id']);
+        $token_class  = 'ok';
+    } else {
+        $token_status = '❌ Token ungültig oder abgelaufen';
+        $token_class  = 'error';
+    }
+} else {
+    $token_status = '⚪ Kein Token hinterlegt';
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -193,6 +274,33 @@ if ($savedOpts !== null || $savedTheme !== null) {
 <meta charset="UTF-8">
 <title>DS Controller</title>
 <link id="gf-link" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= rawurlencode($opts['font_family']==='Segoe UI'?'Inter':$opts['font_family']) ?>:wght@400;600;700;800&display=swap">
+<style>
+/* ── Instagram Block Styles ──────────────────────────────── */
+.ig-block{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px;margin-bottom:20px;}
+.ig-block-title{font-size:14px;font-weight:700;margin:0 0 3px;display:flex;align-items:center;gap:8px;}
+.ig-block-sub{font-size:12px;color:var(--text-muted);margin:0 0 20px;}
+.ig-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 32px;}
+.ig-row{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;}
+.ig-label{font-size:12px;font-weight:600;color:var(--text-main);}
+.ig-sublabel{font-size:11px;color:var(--text-muted);margin-top:1px;}
+.ig-input{padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-card);color:var(--text-main);width:100%;box-sizing:border-box;}
+.ig-input:focus{outline:none;border-color:var(--primary);}
+.ig-textarea{padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:monospace;background:var(--bg-card);color:var(--text-main);width:100%;box-sizing:border-box;height:76px;resize:vertical;}
+.ig-select{padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-card);color:var(--text-main);}
+.ig-num{padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-card);color:var(--text-main);width:80px;}
+.ig-toggle-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-subtle);border-radius:8px;cursor:pointer;}
+.ig-toggle-row:hover{background:var(--border-light);}
+.ig-toggle-label{font-size:13px;font-weight:600;color:var(--text-main);flex:1;}
+.ig-toggle-sub{font-size:11px;color:var(--text-muted);}
+.ig-toggles{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.ig-section-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin:18px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--border-light);}
+.ig-status{font-size:12px;padding:6px 12px;border-radius:6px;display:inline-block;}
+.ig-status.ok{background:rgba(52,199,89,.10);color:#1a7a30;border:1px solid rgba(52,199,89,.25);}
+.ig-status.error{background:rgba(255,59,48,.08);color:#c0392b;border:1px solid rgba(255,59,48,.2);}
+.ig-status.muted{background:var(--bg-subtle);color:var(--text-muted);border:1px solid var(--border-light);}
+.ig-footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-top:18px;margin-top:4px;border-top:1px solid var(--border-light);}
+.ig-inline-pair{display:flex;gap:8px;align-items:center;}
+</style>
 </head>
 <body class="bo">
 <?php include __DIR__ . '/../inc/menu.php'; ?>
@@ -384,6 +492,207 @@ if ($savedOpts !== null || $savedTheme !== null) {
 </div>
 </form>
 <form method="POST" id="rst-form" style="display:none"><input type="hidden" name="action" value="reset"></form>
+
+<!-- ═══════════════════════════════════════════════════════════
+     BLOCK 3 — INSTAGRAM FEED EINSTELLUNGEN
+════════════════════════════════════════════════════════════ -->
+<form method="POST" id="ig-form">
+<input type="hidden" name="action" value="ig_save">
+<div class="ig-block">
+  <div class="ig-block-title">📸 Instagram Feed</div>
+  <div class="ig-block-sub">Token, Quellen, Filter und Darstellungsoptionen für /instagram/ und /instagram-video/</div>
+
+  <?php
+  // Hilfsfunktion: checked
+  function ig_chk($key, $default=1) { return ig_get($key, $default) ? 'checked' : ''; }
+  function ig_val($key, $default='') { return htmlspecialchars(ig_get($key, $default)); }
+  ?>
+
+  <!-- Verbindung -->
+  <div class="ig-section-head">🔗 Verbindung</div>
+  <div class="ig-grid">
+    <div class="ig-row">
+      <label class="ig-label">Access Token</label>
+      <span class="ig-sublabel">Meta Graph API — Long-lived token</span>
+      <input type="password" name="wcr_instagram_token" class="ig-input"
+             value="<?= ig_val('wcr_instagram_token') ?>" placeholder="Einfügen..." autocomplete="off">
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Instagram User ID</label>
+      <span class="ig-sublabel">Numerische ID des Business-Accounts</span>
+      <input type="text" name="wcr_instagram_user_id" class="ig-input"
+             value="<?= ig_val('wcr_instagram_user_id') ?>" placeholder="z.B. 17841400000000">
+    </div>
+  </div>
+  <div style="margin-bottom:18px;">
+    <span class="ig-status <?= $token_class ?>"><?= htmlspecialchars($token_status) ?></span>
+  </div>
+
+  <!-- Quellen -->
+  <div class="ig-section-head">📡 Quellen &amp; Filter</div>
+  <div class="ig-toggles">
+    <label class="ig-toggle-row">
+      <input type="checkbox" name="wcr_instagram_use_tagged" <?= ig_chk('wcr_instagram_use_tagged') ?>>
+      <div>
+        <div class="ig-toggle-label">Tagged (@mention)</div>
+        <div class="ig-toggle-sub">Posts in denen der Account getaggt wurde</div>
+      </div>
+    </label>
+    <label class="ig-toggle-row">
+      <input type="checkbox" name="wcr_instagram_use_hashtag" <?= ig_chk('wcr_instagram_use_hashtag') ?>>
+      <div>
+        <div class="ig-toggle-label">Hashtag-Feed</div>
+        <div class="ig-toggle-sub">Posts mit den unten definierten Hashtags</div>
+      </div>
+    </label>
+  </div>
+  <div class="ig-grid">
+    <div class="ig-row">
+      <label class="ig-label">Hashtags</label>
+      <span class="ig-sublabel">Ohne #, ein Hashtag pro Zeile</span>
+      <textarea name="wcr_instagram_hashtags" class="ig-textarea"
+                placeholder="wakecampruhlsdorf"><?= ig_val('wcr_instagram_hashtags', 'wakecampruhlsdorf') ?></textarea>
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Ausgeschlossene Accounts</label>
+      <span class="ig-sublabel">Ein Username pro Zeile, ohne @</span>
+      <textarea name="wcr_instagram_excluded" class="ig-textarea"
+                placeholder="spamaccount"><?= ig_val('wcr_instagram_excluded') ?></textarea>
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Max. Post-Alter</label>
+      <span class="ig-sublabel">Ältere Posts werden ignoriert</span>
+      <div class="ig-inline-pair">
+        <input type="number" name="wcr_instagram_max_age_value" class="ig-num"
+               value="<?= ig_val('wcr_instagram_max_age_value', 30) ?>" min="0">
+        <select name="wcr_instagram_max_age_unit" class="ig-select">
+          <?php foreach(['days'=>'Tage','weeks'=>'Wochen','months'=>'Monate'] as $v=>$l): ?>
+          <option value="<?= $v ?>" <?= ig_get('wcr_instagram_max_age_unit','days')===$v?'selected':'' ?>><?= $l ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Mindest-Likes</label>
+      <span class="ig-sublabel">0 = alle Posts anzeigen</span>
+      <input type="number" name="wcr_instagram_min_likes" class="ig-num"
+             value="<?= ig_val('wcr_instagram_min_likes', 0) ?>" min="0">
+    </div>
+  </div>
+
+  <!-- Grid-Einstellungen -->
+  <div class="ig-section-head">🖼️ Grid-Darstellung</div>
+  <div class="ig-grid">
+    <div class="ig-row">
+      <label class="ig-label">Max. Posts im Grid</label>
+      <span class="ig-sublabel">Anzahl sichtbarer Posts (2×2 / 2×3 / 2×4)</span>
+      <select name="wcr_instagram_max_posts" class="ig-select">
+        <?php foreach([4,6,8] as $v): ?>
+        <option value="<?= $v ?>" <?= ig_get('wcr_instagram_max_posts',8)==$v?'selected':'' ?>><?= $v ?> Posts</option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Auto-Refresh</label>
+      <span class="ig-sublabel">Grid neu laden alle X Minuten</span>
+      <select name="wcr_instagram_refresh" class="ig-select">
+        <?php foreach([5,10,15,30] as $v): ?>
+        <option value="<?= $v ?>" <?= ig_get('wcr_instagram_refresh',10)==$v?'selected':'' ?>><?= $v ?> Min</option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">NEU-Badge (Stunden)</label>
+      <span class="ig-sublabel">Posts neuer als X Stunden erhalten Badge</span>
+      <input type="number" name="wcr_instagram_new_hours" class="ig-num"
+             value="<?= ig_val('wcr_instagram_new_hours', 2) ?>" min="1" max="72">
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Username-Overlay</label>
+      <span class="ig-sublabel">@Username + Zeitstempel auf jedem Post</span>
+      <label class="ig-toggle-row" style="margin-top:4px;">
+        <input type="checkbox" name="wcr_instagram_show_user" <?= ig_chk('wcr_instagram_show_user') ?>>
+        <div><div class="ig-toggle-label">@Username anzeigen</div></div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Video -->
+  <div class="ig-section-head">🎬 Video-Player</div>
+  <div class="ig-grid">
+    <div class="ig-row">
+      <label class="ig-label">Video-Pool</label>
+      <span class="ig-sublabel">Aus den X neuesten Videos wird zufällig gewählt</span>
+      <select name="wcr_instagram_video_pool" class="ig-select">
+        <?php foreach([5,10,15,20] as $v): ?>
+        <option value="<?= $v ?>" <?= ig_get('wcr_instagram_video_pool',10)==$v?'selected':'' ?>><?= $v ?> Videos</option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Clips pro Session</label>
+      <span class="ig-sublabel">Wie viele Videos hintereinander abgespielt werden</span>
+      <select name="wcr_instagram_video_count" class="ig-select">
+        <?php for ($v=1;$v<=6;$v++): ?>
+        <option value="<?= $v ?>" <?= ig_get('wcr_instagram_video_count',3)==$v?'selected':'' ?>><?= $v ?> Clips</option>
+        <?php endfor; ?>
+      </select>
+    </div>
+  </div>
+
+  <!-- CTA & QR -->
+  <div class="ig-section-head">📢 CTA &amp; QR-Code</div>
+  <div class="ig-grid">
+    <div class="ig-row">
+      <label class="ig-label">CTA-Text</label>
+      <span class="ig-sublabel">Unten am Bildschirm eingeblendet</span>
+      <input type="text" name="wcr_instagram_cta_text" class="ig-input"
+             value="<?= ig_val('wcr_instagram_cta_text', 'Markiere uns auf Instagram und erscheine hier! 📸') ?>">
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">QR-Code Ziel-URL</label>
+      <span class="ig-sublabel">z.B. https://instagram.com/wakecamp</span>
+      <input type="url" name="wcr_instagram_qr_url" class="ig-input"
+             value="<?= ig_val('wcr_instagram_qr_url') ?>" placeholder="https://instagram.com/...">
+    </div>
+    <div class="ig-row">
+      <label class="ig-label" style="margin-bottom:6px;">Einblenden</label>
+      <label class="ig-toggle-row">
+        <input type="checkbox" name="wcr_instagram_cta_active" <?= ig_chk('wcr_instagram_cta_active') ?>>
+        <div><div class="ig-toggle-label">CTA-Leiste anzeigen</div></div>
+      </label>
+      <label class="ig-toggle-row" style="margin-top:5px;">
+        <input type="checkbox" name="wcr_instagram_qr_active" <?= ig_chk('wcr_instagram_qr_active', 0) ?>>
+        <div><div class="ig-toggle-label">QR-Code anzeigen</div></div>
+      </label>
+    </div>
+    <div class="ig-row">
+      <label class="ig-label">Standort-Label</label>
+      <span class="ig-sublabel">Wird im Overlay angezeigt</span>
+      <input type="text" name="wcr_instagram_location_label" class="ig-input"
+             value="<?= ig_val('wcr_instagram_location_label') ?>" placeholder="Wake &amp; Camp Ruhlsdorf">
+    </div>
+  </div>
+
+  <!-- Extras -->
+  <div class="ig-section-head">⭐ Extras</div>
+  <div class="ig-toggles">
+    <label class="ig-toggle-row">
+      <input type="checkbox" name="wcr_instagram_weekly_best" <?= ig_chk('wcr_instagram_weekly_best', 0) ?>>
+      <div>
+        <div class="ig-toggle-label">Post der Woche</div>
+        <div class="ig-toggle-sub">Sonntags automatisch Fullscreen-Highlight des beliebtesten Posts</div>
+      </div>
+    </label>
+  </div>
+
+  <!-- Footer -->
+  <div class="ig-footer">
+    <button type="submit" class="btn-save" style="flex:unset;padding:11px 28px;">💾 Speichern</button>
+    <span class="ig-status <?= $token_class ?>"><?= htmlspecialchars($token_status) ?></span>
+  </div>
+</div>
+</form>
 
 <style>
 .dsc-block{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px;margin-bottom:20px;}
