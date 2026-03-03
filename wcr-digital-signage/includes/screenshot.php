@@ -9,32 +9,37 @@ add_action('wp_footer', function () {
     if (empty($_GET['wcr_screenshot'])) return;
 ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+    /* Alles ausblenden was nicht ins Bild soll */
+    #wpadminbar,
+    #wpadminbar * { display: none !important; }
+    html { margin-top: 0 !important; }
+    ::-webkit-scrollbar { display: none; }
+</style>
 <script>
 (function () {
-    var overlay = document.createElement('div');
-    overlay.id = 'wcr-shot-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.75);'
-        + 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
-        + 'color:#fff;font-family:sans-serif;font-size:1.2rem;gap:12px;';
-    overlay.innerHTML = '<div style="width:48px;height:48px;border:4px solid rgba(255,255,255,.2);'
-        + 'border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite"></div>'
-        + '<div>Screenshot wird erstellt…</div>'
-        + '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
-    document.body.appendChild(overlay);
-
     window.addEventListener('load', function () {
+        // Admin-Bar komplett entfernen
+        var adminBar = document.getElementById('wpadminbar');
+        if (adminBar) adminBar.remove();
+        // html margin-top zurücksetzen (WordPress setzt 32px für Admin-Bar)
+        document.documentElement.style.marginTop = '0';
+        document.body.style.marginTop = '0';
+        // Ganz nach oben scrollen
+        window.scrollTo(0, 0);
+
         setTimeout(function () {
-
-            // Overlay VOR dem Rendern entfernen → kommt nicht ins Bild
-            overlay.remove();
-
-            html2canvas(document.documentElement, {
+            html2canvas(document.body, {
                 backgroundColor : null,
                 scale           : 1,
                 width           : 1080,
                 height          : 1920,
                 windowWidth     : 1080,
                 windowHeight    : 1920,
+                scrollX         : 0,
+                scrollY         : 0,
+                x               : 0,
+                y               : 0,
                 useCORS         : true,
                 allowTaint      : false,
                 logging         : false,
@@ -57,12 +62,8 @@ add_action('wp_footer', function () {
                 }, 'image/jpeg', 0.93);
 
             }).catch(function (err) {
-                document.body.insertAdjacentHTML('beforeend',
-                    '<div style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.8);'
-                    + 'display:flex;align-items:center;justify-content:center;color:#f87171;font-family:sans-serif;">'
-                    + '✗ Fehler: ' + err + '</div>');
+                alert('✗ Screenshot-Fehler: ' + err);
             });
-
         }, 2500);
     });
 }());
