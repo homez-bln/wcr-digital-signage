@@ -4,9 +4,6 @@
  * Description: Digital Signage System für Wake & Camp Ruhlsdorf
  * Version:     1.1.0
  * Author:      WCR
- *
- * BE is master — Einstellungen werden ausschließlich über /be/ctrl/ds-settings.php verwaltet.
- * Dieses Plugin liest nur aus wp_options (wcr_ds_options / wcr_ds_theme) und gibt CSS aus.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -18,13 +15,22 @@ define( 'WCR_DS_VERSION', '1.1.0' );
 define( 'WCR_DS_URL',     plugin_dir_url( __FILE__ ) );
 define( 'WCR_DS_PATH',    plugin_dir_path( __FILE__ ) );
 
+/* ====================================================
+   INCLUDES  (Reihenfolge wichtig!)
+   1. db        — DB-Verbindung, keine Abhängigkeiten
+   2. instagram  — WCR_Instagram-Klasse, braucht db
+   3. enqueue    — Asset-Einbindung
+   4. rest-api   — REST-Routen, braucht WCR_Instagram
+   5. shortcodes — Shortcodes, braucht WCR_Instagram
+==================================================== */
 require_once WCR_DS_PATH . 'includes/db.php';
+require_once WCR_DS_PATH . 'includes/instagram.php';
 require_once WCR_DS_PATH . 'includes/enqueue.php';
 require_once WCR_DS_PATH . 'includes/rest-api.php';
 require_once WCR_DS_PATH . 'includes/shortcodes.php';
 
 /* ====================================================
-   DEFAULTS (müssen identisch mit BE $DEFAULTS sein)
+   DEFAULTS
 ==================================================== */
 function wcr_ds_defaults() {
     return array(
