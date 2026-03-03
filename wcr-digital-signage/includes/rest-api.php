@@ -151,11 +151,7 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
-    // ────────────────────────────────────────────────────────────────
-    // ── DS-Settings (BE-Brücke) ──────────────────────────────────────
-    // GET  → Einstellungen lesen (öffentlich, für Debugging)
-    // POST → Einstellungen schreiben (nur mit internem Secret)
-    // ────────────────────────────────────────────────────────────────
+    // ── DS-Settings (BE-Brücke) ──
     register_rest_route('wakecamp/v1', '/ds-settings', [
         [
             'methods'             => 'GET',
@@ -170,13 +166,10 @@ add_action('rest_api_init', function() {
         [
             'methods'             => 'POST',
             'callback'            => function(WP_REST_Request $req) {
-                // Secret prüfen
                 if (($req->get_param('wcr_secret') ?? '') !== WCR_DS_API_SECRET) {
                     return new WP_Error('forbidden', 'Nicht autorisiert', ['status' => 403]);
                 }
-
                 $action = $req->get_param('action') ?? '';
-
                 if ($action === 'save') {
                     $opts = $req->get_param('options');
                     if (is_array($opts)) {
@@ -185,12 +178,9 @@ add_action('rest_api_init', function() {
                                     'viewport_w','viewport_h'];
                         $clean = [];
                         foreach ($allowed as $k) {
-                            if (isset($opts[$k])) {
-                                $clean[$k] = sanitize_text_field((string)$opts[$k]);
-                            }
+                            if (isset($opts[$k])) $clean[$k] = sanitize_text_field((string)$opts[$k]);
                         }
                         update_option('wcr_ds_options', $clean);
-                        // Transient-Cache leeren
                         global $wpdb;
                         $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient%wcr%'");
                     }
@@ -198,17 +188,33 @@ add_action('rest_api_init', function() {
                     update_option('wcr_ds_options', wcr_ds_defaults());
                 } elseif ($action === 'theme') {
                     $theme = sanitize_text_field($req->get_param('theme') ?? '');
-                    if (in_array($theme, ['glass', 'flat', 'aurora'], true)) {
+                    if (in_array($theme, ['glass', 'flat', 'aurora'], true))
                         update_option('wcr_ds_theme', $theme);
-                    }
                 } else {
                     return new WP_Error('invalid_action', 'Unbekannte Action', ['status' => 400]);
                 }
-
                 return rest_ensure_response(['ok' => true, 'action' => $action]);
             },
             'permission_callback' => '__return_true',
         ],
+    ]);
+
+    // ══════════════════════════════════════════════════════════
+    // INSTAGRAM REST ENDPOINTS
+    // ══════════════════════════════════════════════════════════
+
+    // GET /wp-json/wakecamp/v1/instagram
+    register_rest_route('wakecamp/v1', '/instagram', [
+        'methods'             => 'GET',
+        'callback'            => fn() => rest_ensure_response(WCR_Instagram::get_posts()),
+        'permission_callback' => '__return_true',
+    ]);
+
+    // GET /wp-json/wakecamp/v1/instagram/videos
+    register_rest_route('wakecamp/v1', '/instagram/videos', [
+        'methods'             => 'GET',
+        'callback'            => fn() => rest_ensure_response(WCR_Instagram::get_videos()),
+        'permission_callback' => '__return_true',
     ]);
 
 });
