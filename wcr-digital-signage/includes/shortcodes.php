@@ -63,8 +63,7 @@ if (!function_exists('opening_hours_pixel_perfect')) {
         $wochentage_kurz = [1=>'Mo',2=>'Di',3=>'Mi',4=>'Do',5=>'Fr',6=>'Sa',7=>'So'];
         $lat = 52.1750;
         $lon = 13.1500;
-        $todayStr = $today->format('Y-m-d');
-        // Als "kürzlich geupdated" gilt: updated_at von heute (egal welche Uhrzeit)
+        $todayStr  = $today->format('Y-m-d');
         $todayDate = $today->format('Y-m-d');
 
         ob_start();
@@ -95,30 +94,18 @@ if (!function_exists('opening_hours_pixel_perfect')) {
 .oh-weekend-sep td { border-top: 1px solid rgba(255,255,255,.10) !important; padding-top: 12px !important; }
 .oh-table td.col-5-unit { white-space: nowrap; }
 
-/* ── Heute-Highlight ── */
+/* ── Heute: Glow + fett, kein Pfeil ── */
+.oh-table tr.today {
+    background: rgba(93,156,93,.12);
+    box-shadow: 0 0 18px rgba(93,156,93,.25);
+    position: relative;
+}
 .oh-table tr.today td {
     color: #fff !important;
     font-weight: 700;
 }
-.oh-today-arrow {
-    display: inline-block;
-    margin-right: 6px;
-    font-style: normal;
-    animation: oh-arrow-bounce .8s ease-in-out infinite alternate;
-    color: var(--clr-green, #5d9c5d);
-}
-@keyframes oh-arrow-bounce {
-    from { transform: translateX(0);   opacity: .7; }
-    to   { transform: translateX(5px); opacity: 1;  }
-}
-/* Glow-Effekt auf der ganzen Zeile */
-.oh-table tr.today {
-    background: rgba(93,156,93,.12);
-    border-radius: 8px;
-    box-shadow: 0 0 18px rgba(93,156,93,.25);
-    position: relative;
-}
-/* Updated-Badge: zeigt dass die Zeit heute geändert wurde */
+
+/* ── Updated-Badge: andere Tage die heute geändert wurden ── */
 .oh-updated-badge {
     display: inline-block;
     vertical-align: middle;
@@ -157,29 +144,23 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                 $c2    = (int)($row->course2 ?? 0);
                 $c1txt = trim($row->course1_text ?? '');
                 $c2txt = trim($row->course2_text ?? '');
-                $hasKurs = $isWeekend && ($c1 || $c2);
+                $hasKurs  = $isWeekend && ($c1 || $c2);
                 $sepClass = '';
                 if ($isWeekend && $firstWeekend) { $sepClass = ' oh-weekend-sep'; $firstWeekend = false; }
                 if ($isWeekend && !$hasStart && !$hasKurs) continue;
                 if (!$isWeekend && !$hasStart) continue;
 
-                $isToday   = ($row->datum === $todayStr);
-                // updated_at von heute? → Badge anzeigen
-                $updatedAt = !empty($row->updated_at) ? substr($row->updated_at, 0, 10) : '';
+                $isToday         = ($row->datum === $todayStr);
+                $updatedAt       = !empty($row->updated_at) ? substr($row->updated_at, 0, 10) : '';
                 $wasUpdatedToday = ($updatedAt === $todayDate && !$isToday);
-                // Heute-Zeile bekommt Pfeil + Glow, andere Tage die heute geändert wurden bekommen Badge
-                $trClass = trim(($isToday ? 'today' : '') . $sepClass);
+                $trClass         = trim(($isToday ? 'today' : '') . $sepClass);
+                $updatedBadge    = $wasUpdatedToday ? '<span class="oh-updated-badge">↑ Update</span>' : '';
 
                 if ($isClosed) {
                     echo '<tr class="geschlossen' . ($trClass ? ' ' . $trClass : '') . '">';
-                    $dayLabel = $isToday
-                        ? '<i class="oh-today-arrow">▶</i>' . esc_html($tag)
-                        : esc_html($tag);
-                    echo '<td class="col-1-day">' . $dayLabel . ':</td>';
+                    echo '<td class="col-1-day">' . esc_html($tag) . ':</td>';
                     echo '<td class="col-2-start" colspan="3" style="text-align:center;letter-spacing:.15em;font-size:28px;color:rgba(255,59,48,.7)">GESCHLOSSEN</td>';
-                    echo '<td class="col-5-unit">';
-                    if ($wasUpdatedToday) echo '<span class="oh-updated-badge">↑ Update</span>';
-                    echo '</td></tr>';
+                    echo '<td class="col-5-unit">' . $updatedBadge . '</td></tr>';
                     continue;
                 }
 
@@ -204,26 +185,16 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                     $stoerer .= '</span>';
                 }
 
-                // Tag-Label: Heute bekommt animierten Pfeil
-                $dayLabel = $isToday
-                    ? '<i class="oh-today-arrow">▶</i>' . esc_html($tag)
-                    : esc_html($tag);
-
-                // Updated-Badge für andere Tage die heute geändert wurden
-                $updatedBadge = $wasUpdatedToday
-                    ? '<span class="oh-updated-badge">↑ Update</span>'
-                    : '';
-
                 if ($hasStart) {
                     echo '<tr' . ($trClass ? ' class="' . $trClass . '"' : '') . '>';
-                    echo '<td class="col-1-day">'   . $dayLabel   . ':</td>';
+                    echo '<td class="col-1-day">'   . esc_html($tag)   . ':</td>';
                     echo '<td class="col-2-start">' . esc_html($start) . '</td>';
                     echo '<td class="col-3-sep">–</td>';
                     echo '<td class="col-4-end">'   . esc_html($end)   . '</td>';
                     echo '<td class="col-5-unit">UHR' . $stoerer . $updatedBadge . '</td></tr>';
                 } elseif ($hasKurs) {
                     echo '<tr' . ($trClass ? ' class="' . $trClass . '"' : '') . '>';
-                    echo '<td class="col-1-day">' . $dayLabel . ':</td>';
+                    echo '<td class="col-1-day">' . esc_html($tag) . ':</td>';
                     echo '<td class="col-2-start" colspan="3" style="color:var(--clr-text-muted,#7a8a8a);font-size:22px;">Kein Wakeboard</td>';
                     echo '<td class="col-5-unit">' . $stoerer . $updatedBadge . '</td></tr>';
                 }
