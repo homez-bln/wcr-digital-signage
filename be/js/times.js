@@ -1,11 +1,43 @@
 'use strict';
 
+/* ================================================================
+   PREVIEW RELOAD
+   Nach jeder gespeicherten Zeit wird der iFrame nach 2s neu geladen.
+   Debounced: mehrere schnelle Änderungen = nur ein Reload.
+   ================================================================ */
+var _previewTimer = null;
+function schedulePreviewReload() {
+    clearTimeout(_previewTimer);
+    _previewTimer = setTimeout(function () {
+        var iframe = document.getElementById('preview-iframe');
+        if (!iframe) return;
+        iframe.style.opacity    = '0.4';
+        iframe.style.transition = 'opacity .3s';
+        iframe.onload = function () {
+            iframe.style.opacity = '1';
+            iframe.onload = null;
+        };
+        iframe.src = iframe.src.split('?')[0] + '?t=' + Date.now();
+    }, 2000);
+}
+
+/* ================================================================
+   1. ZEIT-INPUT SPEICHERN
+   ================================================================ */
 function updateTime(input, date, col) {
     input.classList.remove('is-fallback');
     input.classList.add('saving');
     sendData(date, col, input.value,
-        () => { input.classList.remove('saving'); input.classList.add('saved'); setTimeout(() => input.classList.remove('saved'), 1200); },
-        () => { input.classList.remove('saving'); input.classList.add('error'); }
+        () => {
+            input.classList.remove('saving');
+            input.classList.add('saved');
+            setTimeout(() => input.classList.remove('saved'), 1200);
+            schedulePreviewReload();
+        },
+        () => {
+            input.classList.remove('saving');
+            input.classList.add('error');
+        }
     );
 }
 
@@ -21,6 +53,7 @@ function clearTimes(date) {
         sendData(date, 'end_time', '', () => {
             if (endInput) { endInput.classList.remove('saving'); endInput.classList.add('saved'); setTimeout(() => endInput.classList.remove('saved'), 1200); }
             if (btn) btn.remove();
+            schedulePreviewReload();
         }, err => { if (endInput) endInput.classList.add('error'); alert('Fehler: ' + err); });
     }, err => { if (startInput) startInput.classList.add('error'); alert('Fehler: ' + err); });
 }
@@ -42,6 +75,7 @@ function toggleCourse(date, col, toggleBtn) {
         const saveText = newVal ? textVal : '';
         sendData(date, textCol, saveText, () => {
             if (!newVal && textInput) textInput.value = fallback;
+            schedulePreviewReload();
         }, err => console.warn('Text-Fehler: ' + err));
     }, err => { toggleBtn.style.opacity = '1'; pill.classList.toggle('active'); alert('Fehler: ' + err); },
     { preserve_start_time: startVal, preserve_end_time: endVal });
@@ -50,7 +84,10 @@ function toggleCourse(date, col, toggleBtn) {
 function updateCourseText(input, date, col) {
     input.style.color = '#ccc';
     sendData(date, col, input.value,
-        () => { input.style.color = input.closest('.course-pill').classList.contains('active') ? '#333' : '#aaa'; },
+        () => {
+            input.style.color = input.closest('.course-pill').classList.contains('active') ? '#333' : '#aaa';
+            schedulePreviewReload();
+        },
         () => { input.style.color = 'red'; alert('Speicherfehler beim Kurstext'); }
     );
 }
@@ -67,9 +104,7 @@ function sendData(date, col, val, onSuccess, onError, extra = {}) {
 }
 
 /* ================================================================
-   Screenshot: Popup öffnet die Seite mit ?wcr_screenshot=1
-   Die Seite selbst macht html2canvas + direkten Blob-Download.
-   BE-Fenster hört auf postMessage und schließt den Button.
+   SCREENSHOT
    ================================================================ */
 function downloadAsJPG() {
     const btn = event.currentTarget || event.target;
@@ -100,8 +135,6 @@ function downloadAsJPG() {
         btn.disabled    = false;
     }
     window.addEventListener('message', onMsg);
-
-    // Timeout-Fallback
     setTimeout(function () {
         window.removeEventListener('message', onMsg);
         btn.textContent = origText;
@@ -129,5 +162,6 @@ function toggleClosed(date, btn) {
             if (existBadge) existBadge.remove();
             ['start','end'].forEach(t => { const i = document.getElementById(t+'-'+date); if(i) i.disabled=false; });
         }
+        schedulePreviewReload();
     }, err => { btn.style.opacity = '1'; alert('Fehler: ' + err); });
 }
