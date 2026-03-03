@@ -291,18 +291,25 @@ if (!function_exists('wcr_sc_merch')) {
     add_shortcode('wcr_merch', 'wcr_sc_merch');
 }
 
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 // INSTAGRAM GRID  [wcr_instagram]
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 add_shortcode('wcr_instagram', function () {
     wp_enqueue_style('wcr-instagram',  WCR_DS_URL . 'assets/css/wcr-instagram.css', [], WCR_DS_VERSION);
     wp_enqueue_script('wcr-instagram', WCR_DS_URL . 'assets/js/wcr-instagram.js',  [], WCR_DS_VERSION, true);
+
+    // ── hasToken: true wenn Token UND User-ID gesetzt ──
+    $ig_token     = (string) get_option('wcr_instagram_token',   '');
+    $ig_user_id   = (string) get_option('wcr_instagram_user_id', '');
+    $ig_has_token = ($ig_token !== '' && $ig_user_id !== '');
+
     wp_localize_script('wcr-instagram', 'wcrInstagram', [
-        'restUrl'  => rest_url(),
-        'hashtag'  => ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r "),
-        'refresh'  => get_option('wcr_instagram_refresh',   '10'),
-        'newHours' => get_option('wcr_instagram_new_hours', '2'),
-        'showUser' => get_option('wcr_instagram_show_user', '1'),
+        'restUrl'   => rest_url(),
+        'hashtag'   => ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r "),
+        'refresh'   => get_option('wcr_instagram_refresh',   '10'),
+        'newHours'  => get_option('wcr_instagram_new_hours', '2'),
+        'showUser'  => get_option('wcr_instagram_show_user', '1'),
+        'hasToken'  => $ig_has_token,   // ← NEU: Gate für Placeholder
     ]);
 
     $posts       = WCR_Instagram::get_posts();
@@ -382,15 +389,22 @@ add_shortcode('wcr_instagram', function () {
     <?php return ob_get_clean();
 });
 
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 // INSTAGRAM VIDEO  [wcr_instagram_video]
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 add_shortcode('wcr_instagram_video', function () {
     wp_enqueue_style('wcr-iv',  WCR_DS_URL . 'assets/css/wcr-instagram-video.css', [], WCR_DS_VERSION);
     wp_enqueue_script('wcr-iv', WCR_DS_URL . 'assets/js/wcr-instagram-video.js',  [], WCR_DS_VERSION, true);
+
+    // ── hasToken: true wenn Token UND User-ID gesetzt ──
+    $ig_token     = (string) get_option('wcr_instagram_token',   '');
+    $ig_user_id   = (string) get_option('wcr_instagram_user_id', '');
+    $ig_has_token = ($ig_token !== '' && $ig_user_id !== '');
+
     wp_localize_script('wcr-iv', 'wcrInstagramVideo', [
-        'restUrl' => rest_url(),
-        'hashtag' => ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r "),
+        'restUrl'  => rest_url(),
+        'hashtag'  => ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r "),
+        'hasToken' => $ig_has_token,   // ← NEU: Gate für Placeholder
     ]);
 
     $videos   = WCR_Instagram::get_videos();
