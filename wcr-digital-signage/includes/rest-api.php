@@ -1,7 +1,6 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// Internes Secret für BE → WP Kommunikation
 define('WCR_DS_API_SECRET', 'WCR_DS_2026');
 
 add_action('rest_api_init', function() {
@@ -121,7 +120,7 @@ add_action('rest_api_init', function() {
     register_rest_route('wakecamp/v1', '/item/(?P<id>[0-9]+)', [
         'methods'             => 'GET',
         'callback'            => function($req) {
-            $db = get_ionos_db_connection();
+            $db       = get_ionos_db_connection();
             if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
             $id       = (int) $req['id'];
             $tabellen = ['food', 'drinks', 'cable', 'camping', 'extra', 'ice'];
@@ -156,9 +155,24 @@ add_action('rest_api_init', function() {
         [
             'methods'             => 'GET',
             'callback'            => function() {
+                // Instagram-Optionen mitliefern
+                $ig_keys = [
+                    'wcr_instagram_token', 'wcr_instagram_user_id', 'wcr_instagram_hashtags',
+                    'wcr_instagram_excluded', 'wcr_instagram_location_label', 'wcr_instagram_cta_text',
+                    'wcr_instagram_qr_url', 'wcr_instagram_max_age_value', 'wcr_instagram_max_age_unit',
+                    'wcr_instagram_max_posts', 'wcr_instagram_refresh', 'wcr_instagram_new_hours',
+                    'wcr_instagram_video_pool', 'wcr_instagram_video_count', 'wcr_instagram_min_likes',
+                    'wcr_instagram_use_tagged', 'wcr_instagram_use_hashtag', 'wcr_instagram_show_user',
+                    'wcr_instagram_cta_active', 'wcr_instagram_qr_active', 'wcr_instagram_weekly_best',
+                ];
+                $instagram = [];
+                foreach ($ig_keys as $k) {
+                    $instagram[$k] = get_option($k, '');
+                }
                 return rest_ensure_response([
-                    'options' => get_option('wcr_ds_options', []),
-                    'theme'   => get_option('wcr_ds_theme', 'glass'),
+                    'options'   => get_option('wcr_ds_options', []),
+                    'theme'     => get_option('wcr_ds_theme', 'glass'),
+                    'instagram' => $instagram,
                 ]);
             },
             'permission_callback' => '__return_true',
@@ -169,7 +183,18 @@ add_action('rest_api_init', function() {
                 if (($req->get_param('wcr_secret') ?? '') !== WCR_DS_API_SECRET) {
                     return new WP_Error('forbidden', 'Nicht autorisiert', ['status' => 403]);
                 }
+
                 $action = $req->get_param('action') ?? '';
+
+                // ── DS Theme ──
+                if ($action === 'theme') {
+                    $theme = sanitize_text_field($req->get_param('theme') ?? '');
+                    if (in_array($theme, ['glass', 'flat', 'aurora'], true))
+                        update_option('wcr_ds_theme', $theme);
+                    return rest_ensure_response(['ok' => true, 'action' => $action]);
+                }
+
+                // ── DS Farben/Font speichern ──
                 if ($action === 'save') {
                     $opts = $req->get_param('options');
                     if (is_array($opts)) {
@@ -184,33 +209,69 @@ add_action('rest_api_init', function() {
                         global $wpdb;
                         $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient%wcr%'");
                     }
-                } elseif ($action === 'reset') {
-                    update_option('wcr_ds_options', wcr_ds_defaults());
-                } elseif ($action === 'theme') {
-                    $theme = sanitize_text_field($req->get_param('theme') ?? '');
-                    if (in_array($theme, ['glass', 'flat', 'aurora'], true))
-                        update_option('wcr_ds_theme', $theme);
-                } else {
-                    return new WP_Error('invalid_action', 'Unbekannte Action', ['status' => 400]);
+                    return rest_ensure_response(['ok' => true, 'action' => $action]);
                 }
-                return rest_ensure_response(['ok' => true, 'action' => $action]);
+
+                // ── DS Reset ──
+                if ($action === 'reset') {
+                    update_option('wcr_ds_options', wcr_ds_defaults());
+                    return rest_ensure_response(['ok' => true, 'action' => $action]);
+                }
+
+                // ── Instagram Settings speichern ──
+                if ($action === 'ig_save') {
+                    $opts = $req->get_param('options');
+                    if (!is_array($opts)) {
+                        return new WP_Error('invalid_options', 'Keine Options übergeben', ['status' => 400]);
+                    }
+
+                    $str_keys = [
+                        'wcr_instagram_token', 'wcr_instagram_user_id', 'wcr_instagram_hashtags',
+                        'wcr_instagram_excluded', 'wcr_instagram_location_label', 'wcr_instagram_cta_text',
+                        'wcr_instagram_qr_url', 'wcr_instagram_max_age_unit',
+                    ];
+                    $int_keys = [
+                        'wcr_instagram_max_age_value', 'wcr_instagram_max_posts', 'wcr_instagram_refresh',
+                        'wcr_instagram_new_hours', 'wcr_instagram_video_pool', 'wcr_instagram_video_count',
+                        'wcr_instagram_min_likes',
+                    ];
+                    $bool_keys = [
+                        'wcr_instagram_use_tagged', 'wcr_instagram_use_hashtag', 'wcr_instagram_show_user',
+                        'wcr_instagram_cta_active', 'wcr_instagram_qr_active', 'wcr_instagram_weekly_best',
+                    ];
+
+                    foreach ($str_keys as $k) {
+                        if (array_key_exists($k, $opts))
+                            update_option($k, sanitize_textarea_field((string)$opts[$k]));
+                    }
+                    foreach ($int_keys as $k) {
+                        if (array_key_exists($k, $opts))
+                            update_option($k, (int)$opts[$k]);
+                    }
+                    foreach ($bool_keys as $k) {
+                        if (array_key_exists($k, $opts))
+                            update_option($k, (int)(bool)$opts[$k]);
+                    }
+
+                    // Cache leeren
+                    delete_transient('wcr_instagram_posts');
+
+                    return rest_ensure_response(['ok' => true, 'action' => 'ig_save']);
+                }
+
+                return new WP_Error('invalid_action', 'Unbekannte Action', ['status' => 400]);
             },
             'permission_callback' => '__return_true',
         ],
     ]);
 
-    // ══════════════════════════════════════════════════════════
-    // INSTAGRAM REST ENDPOINTS
-    // ══════════════════════════════════════════════════════════
-
-    // GET /wp-json/wakecamp/v1/instagram
+    // ── Instagram REST Endpoints ──
     register_rest_route('wakecamp/v1', '/instagram', [
         'methods'             => 'GET',
         'callback'            => fn() => rest_ensure_response(WCR_Instagram::get_posts()),
         'permission_callback' => '__return_true',
     ]);
 
-    // GET /wp-json/wakecamp/v1/instagram/videos
     register_rest_route('wakecamp/v1', '/instagram/videos', [
         'methods'             => 'GET',
         'callback'            => fn() => rest_ensure_response(WCR_Instagram::get_videos()),

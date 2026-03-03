@@ -1,9 +1,11 @@
 (function () {
-    const API    = wcrInstagram.restUrl + 'wakecamp/v1/instagram';
-    const RELOAD = (parseInt(wcrInstagram.refresh, 10) || 10) * 60 * 1000;
-    const NEW_MS = (parseInt(wcrInstagram.newHours, 10) || 2) * 3600 * 1000;
-    const SHOW_U = wcrInstagram.showUser === '1';
-    const HASHTAG = wcrInstagram.hashtag || 'wakecampruhlsdorf';
+    const cfg    = window.wcrInstagram || {};
+    const API    = (cfg.restUrl || '/wp-json/') + 'wakecamp/v1/instagram';
+    const RELOAD = (parseInt(cfg.refresh, 10) || 10) * 60 * 1000;
+    const NEW_MS = (parseInt(cfg.newHours, 10) || 2) * 3600 * 1000;
+    const SHOW_U = cfg.showUser !== '0';
+    const HASHTAG = cfg.hashtag || 'wakecampruhlsdorf';
+    const HAS_TOKEN = cfg.hasToken === true || cfg.hasToken === 'true' || cfg.hasToken === 1;
 
     function timeAgo(iso) {
         const s = Math.floor((Date.now() - new Date(iso)) / 1000);
@@ -38,18 +40,49 @@
         return el;
     }
 
+    // Platzhalter wenn kein Token oder keine Posts
+    function renderPlaceholder(grid, reason) {
+        grid.innerHTML = '';
+        const count = 8;
+        for (let i = 0; i < count; i++) {
+            const el = document.createElement('div');
+            el.className = 'wcr-insta-post wcr-insta-placeholder';
+            el.innerHTML = `
+                <div class="wcr-insta-ph-inner">
+                    <span class="wcr-insta-ph-icon">📸</span>
+                    <span class="wcr-insta-ph-text">${reason}</span>
+                </div>`;
+            grid.appendChild(el);
+        }
+    }
+
     function render(posts) {
         const grid = document.getElementById('wcr-insta-grid');
-        if (!grid || !posts.length) return;
+        if (!grid) return;
+
+        if (!posts || !posts.length) {
+            const msg = HAS_TOKEN ? 'Keine Beiträge gefunden' : 'Instagram nicht verbunden 🔑';
+            renderPlaceholder(grid, msg);
+            return;
+        }
+
         grid.innerHTML = '';
         posts.slice(0, 8).forEach(p => grid.appendChild(buildPost(p)));
     }
 
     function load() {
+        if (!HAS_TOKEN) {
+            const grid = document.getElementById('wcr-insta-grid');
+            if (grid) renderPlaceholder(grid, 'Instagram nicht verbunden 🔑');
+            return;
+        }
         fetch(API)
             .then(r => r.json())
-            .then(data => { if (Array.isArray(data)) render(data); })
-            .catch(console.error);
+            .then(data => render(Array.isArray(data) ? data : []))
+            .catch(() => {
+                const grid = document.getElementById('wcr-insta-grid');
+                if (grid) renderPlaceholder(grid, 'Verbindung fehlgeschlagen');
+            });
     }
 
     document.addEventListener('DOMContentLoaded', load);
