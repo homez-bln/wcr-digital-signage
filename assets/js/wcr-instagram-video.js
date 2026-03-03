@@ -12,6 +12,51 @@
     const counter  = document.getElementById('wcr-iv-counter');
     const muteBtn  = document.getElementById('wcr-iv-mute');
 
+    // ─── Placeholder ───────────────────────────────────────────────────────
+
+    function showVideoPlaceholder(type) {
+        const wrap = document.querySelector('.wcr-iv-wrap');
+        if (!wrap) return;
+
+        // Vorhandenen Placeholder entfernen
+        const old = wrap.querySelector('.wcr-iv-placeholder');
+        if (old) old.remove();
+
+        if (player) player.style.visibility = 'hidden';
+
+        const titles = {
+            no_token: 'Instagram nicht eingerichtet',
+            no_videos: 'Keine Videos verfügbar',
+            error: 'Feed konnte nicht geladen werden'
+        };
+        const subs = {
+            no_token: 'Token & User-ID in den DS-Einstellungen hinterlegen',
+            no_videos: 'Aktuell sind keine Videos im Pool vorhanden',
+            error: 'Bitte Verbindung & Token prüfen'
+        };
+        const icons = { no_token: '🔑', no_videos: '🎬', error: '⚠️' };
+
+        const ph = document.createElement('div');
+        ph.className = 'wcr-iv-placeholder wcr-iv-placeholder--' + type;
+        ph.innerHTML = `
+            <div class="wcr-iv-ph-bg"></div>
+            <div class="wcr-iv-ph-inner">
+                <div class="wcr-iv-ph-icon">${icons[type] || '🎬'}</div>
+                <div class="wcr-iv-ph-title">${titles[type] || 'Video nicht verfügbar'}</div>
+                <div class="wcr-iv-ph-sub">${subs[type] || ''}</div>
+                <div class="wcr-iv-ph-hashtag">#${HASHTAG}</div>
+            </div>`;
+        wrap.appendChild(ph);
+    }
+
+    function clearVideoPlaceholder() {
+        const ph = document.querySelector('.wcr-iv-placeholder');
+        if (ph) ph.remove();
+        if (player) player.style.visibility = '';
+    }
+
+    // ─── Helfer ───────────────────────────────────────────────────────────
+
     function getDots() { return document.querySelectorAll('.wcr-iv-dot'); }
 
     function timeAgo(iso) {
@@ -61,6 +106,12 @@
         setTimeout(() => {
             player.src    = v.media_url || v.thumbnail_url || '';
             player.poster = v.thumbnail_url || '';
+
+            // Fallback wenn Video-URL leer oder fehlschlägt
+            player.onerror = () => {
+                showVideoPlaceholder('error');
+            };
+
             username.textContent = v.username ? `@${v.username}` : `#${HASHTAG}`;
             timeEl.textContent   = timeAgo(v.timestamp);
             counter.textContent  = `${index + 1} / ${videos.length}`;
@@ -72,32 +123,44 @@
     }
 
     function load() {
+        // Kein Token?
+        if (!wcrInstagramVideo.hasToken) {
+            showVideoPlaceholder('no_token');
+            return;
+        }
+
         fetch(API)
             .then(r => r.json())
             .then(data => {
-                if (!data.length) return;
+                if (!Array.isArray(data) || !data.length) {
+                    showVideoPlaceholder('no_videos');
+                    return;
+                }
+                clearVideoPlaceholder();
                 videos  = data;
                 current = 0;
                 rebuildDots();
                 playVideo(0);
             })
-            .catch(console.error);
+            .catch(() => showVideoPlaceholder('error'));
     }
 
-    player.addEventListener('loadedmetadata', startProgress);
-    player.addEventListener('ended', () => {
-        current = (current + 1) % videos.length;
-        // Nach letztem Clip: neu laden fuer neue Zufallsauswahl
-        if (current === 0) { load(); return; }
-        playVideo(current);
-    });
+    if (player) {
+        player.addEventListener('loadedmetadata', startProgress);
+        player.addEventListener('ended', () => {
+            current = (current + 1) % videos.length;
+            if (current === 0) { load(); return; }
+            playVideo(current);
+        });
+    }
 
-    muteBtn.addEventListener('click', () => {
-        player.muted = !player.muted;
-        muteBtn.textContent = player.muted ? '🔇' : '🔊';
-    });
+    if (muteBtn) {
+        muteBtn.addEventListener('click', () => {
+            player.muted = !player.muted;
+            muteBtn.textContent = player.muted ? '🔇' : '🔊';
+        });
+    }
 
-    // Alle 30 Min neu laden
     setInterval(load, 30 * 60 * 1000);
     document.addEventListener('DOMContentLoaded', load);
 })();

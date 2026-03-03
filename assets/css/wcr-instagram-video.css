@@ -123,3 +123,81 @@
 }
 .wcr-iv-dot.active .wcr-iv-dot-fill { transition: width linear; }
 .wcr-iv-dot.done  .wcr-iv-dot-fill  { width: 100%; }
+
+/* ═══════════════════════════════════════════════════════════
+   PLACEHOLDER – kein Token / keine Videos / Fehler
+   ═══════════════════════════════════════════════════════════ */
+
+.wcr-iv-placeholder {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    animation: iv-ph-fadein .5s ease forwards;
+}
+
+@keyframes iv-ph-fadein {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* Animierter Gradient-Hintergrund */
+.wcr-iv-ph-bg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 70% 55% at 20% 20%, rgba(131,58,180,.30) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 55% at 80% 80%, rgba(253,29,29,.22) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 45% at 50% 50%, rgba(252,176,69,.12) 0%, transparent 60%),
+        #0a0a0a;
+    animation: iv-bg-drift 8s ease-in-out infinite alternate;
+}
+
+@keyframes iv-bg-drift {
+    0%   { filter: brightness(0.9) saturate(1.1); }
+    100% { filter: brightness(1.1) saturate(1.3); }
+}
+
+/* Info-Karte */
+.wcr-iv-ph-inner {
+    position: relative;
+    z-index: 1;
+    background: rgba(8,8,8,0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 32px;
+    padding: 64px 72px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    max-width: 720px;
+    text-align: center;
+}
+.wcr-iv-ph-icon  { font-size: 88px; line-height: 1; }
+.wcr-iv-ph-title {
+    font-size: 46px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+.wcr-iv-ph-sub {
+    font-size: 30px;
+    color: rgba(255,255,255,.5);
+    line-height: 1.4;
+}
+.wcr-iv-ph-hashtag {
+    font-size: 24px;
+    color: rgba(255,255,255,.22);
+    letter-spacing: 2.5px;
+    margin-top: 10px;
+}
+
+/* Farbakzent */
+.wcr-iv-placeholder--no_token  .wcr-iv-ph-inner { border-top: 3px solid rgba(255,59,48,.6); }
+.wcr-iv-placeholder--no_videos .wcr-iv-ph-inner { border-top: 3px solid rgba(131,58,180,.6); }
+.wcr-iv-placeholder--error     .wcr-iv-ph-inner { border-top: 3px solid rgba(255,69,58,.8); }

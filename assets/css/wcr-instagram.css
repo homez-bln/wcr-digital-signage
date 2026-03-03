@@ -203,3 +203,108 @@
     height: 100%;
     object-fit: contain;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PLACEHOLDER – kein Token / keine Posts / Bild-Fallback
+   ═══════════════════════════════════════════════════════════ */
+
+/* Fullscreen-Placeholder über dem Grid */
+.wcr-insta-placeholder {
+    position: absolute;
+    inset: 100px 0 0 0; /* ab unter Header */
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* Dummy-Kacheln als Hintergrund-Raster */
+.wcr-insta-ph-dummy-grid {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(4, 1fr);
+    gap: 3px;
+    padding: 3px;
+    background: #111;
+    filter: blur(2px) brightness(0.35);
+}
+.wcr-insta-ph-tile {
+    background: radial-gradient(circle at 40% 40%,
+        rgba(131,58,180,.35) 0%, rgba(253,29,29,.18) 50%, rgba(252,176,69,.12) 100%),
+        #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    opacity: 0.5;
+}
+
+/* Zentrierte Info-Karte */
+.wcr-insta-ph-inner {
+    position: relative;
+    z-index: 1;
+    background: rgba(10,10,10,0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 28px;
+    padding: 52px 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    max-width: 680px;
+    text-align: center;
+}
+.wcr-insta-ph-icon {
+    font-size: 72px;
+    line-height: 1;
+    filter: grayscale(0.2);
+}
+.wcr-insta-ph-title {
+    font-size: 38px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+.wcr-insta-ph-sub {
+    font-size: 26px;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.45;
+}
+.wcr-insta-ph-hashtag {
+    font-size: 22px;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 2px;
+    margin-top: 8px;
+}
+
+/* Farbakzent je Typ */
+.wcr-insta-placeholder--no_token  .wcr-insta-ph-inner { border-top: 3px solid rgba(255,59,48,.55); }
+.wcr-insta-placeholder--no_posts  .wcr-insta-ph-inner { border-top: 3px solid rgba(255,176,0,.45); }
+.wcr-insta-placeholder--error     .wcr-insta-ph-inner { border-top: 3px solid rgba(255,69,58,.7); }
+
+/* ── Einzelkachel-Fallback (kein Bild) ── */
+.wcr-insta-post--fallback {
+    background: radial-gradient(circle at 20% 25%,
+        rgba(131,58,180,.22) 0%, rgba(253,29,29,.12) 50%, transparent 80%), #161616;
+}
+.wcr-insta-tile-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+.wcr-insta-tile-fallback span { font-size: 44px; opacity: .45; }
+.wcr-insta-tile-fallback p {
+    font-size: 18px;
+    color: rgba(255,255,255,.3);
+    margin: 0;
+    letter-spacing: .5px;
+}
