@@ -12,22 +12,16 @@ if (!function_exists('random_background_shortcode')) {
             'width'   => '100%',
             'height'  => '',
         ), $atts, 'random_bg');
-
         $folder_path = trailingslashit(get_stylesheet_directory() . '/' . $atts['folder']);
         $folder_url  = trailingslashit(get_stylesheet_directory_uri() . '/' . $atts['folder']);
         $images      = glob($folder_path . '*.{jpg,jpeg,png,gif}', GLOB_BRACE);
-
         $bg_url = ($images && count($images) > 0)
             ? $folder_url . basename($images[array_rand($images)])
             : '';
-
         $style = '';
-        if ($bg_url) {
-            $style .= "background-image: url('$bg_url');background-size:cover;background-position:center center;";
-        }
+        if ($bg_url) $style .= "background-image: url('$bg_url');background-size:cover;background-position:center center;";
         if (!empty($atts['width']))  $style .= 'width:'  . esc_attr($atts['width'])  . ';';
         if (!empty($atts['height'])) $style .= 'height:' . esc_attr($atts['height']) . ';';
-
         $output = '<' . esc_attr($atts['element']);
         if (!empty($atts['id']))    $output .= ' id="'    . esc_attr($atts['id'])    . '"';
         if (!empty($atts['class'])) $output .= ' class="' . esc_attr($atts['class']) . '"';
@@ -58,7 +52,8 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                     COALESCE(course1, 0)      AS course1,
                     COALESCE(course1_text,'') AS course1_text,
                     COALESCE(course2, 0)      AS course2,
-                    COALESCE(course2_text,'') AS course2_text
+                    COALESCE(course2_text,'') AS course2_text,
+                    updated_at
              FROM opening_hours
              WHERE datum >= %s AND datum <= %s
              ORDER BY datum ASC",
@@ -68,6 +63,9 @@ if (!function_exists('opening_hours_pixel_perfect')) {
         $wochentage_kurz = [1=>'Mo',2=>'Di',3=>'Mi',4=>'Do',5=>'Fr',6=>'Sa',7=>'So'];
         $lat = 52.1750;
         $lon = 13.1500;
+        $todayStr = $today->format('Y-m-d');
+        // Als "kürzlich geupdated" gilt: updated_at von heute (egal welche Uhrzeit)
+        $todayDate = $today->format('Y-m-d');
 
         ob_start();
 
@@ -96,6 +94,51 @@ if (!function_exists('opening_hours_pixel_perfect')) {
 .oh-stoerer .st-time  { display: block; font-size: 13px; letter-spacing: .04em; }
 .oh-weekend-sep td { border-top: 1px solid rgba(255,255,255,.10) !important; padding-top: 12px !important; }
 .oh-table td.col-5-unit { white-space: nowrap; }
+
+/* ── Heute-Highlight ── */
+.oh-table tr.today td {
+    color: #fff !important;
+    font-weight: 700;
+}
+.oh-today-arrow {
+    display: inline-block;
+    margin-right: 6px;
+    font-style: normal;
+    animation: oh-arrow-bounce .8s ease-in-out infinite alternate;
+    color: var(--clr-green, #5d9c5d);
+}
+@keyframes oh-arrow-bounce {
+    from { transform: translateX(0);   opacity: .7; }
+    to   { transform: translateX(5px); opacity: 1;  }
+}
+/* Glow-Effekt auf der ganzen Zeile */
+.oh-table tr.today {
+    background: rgba(93,156,93,.12);
+    border-radius: 8px;
+    box-shadow: 0 0 18px rgba(93,156,93,.25);
+    position: relative;
+}
+/* Updated-Badge: zeigt dass die Zeit heute geändert wurde */
+.oh-updated-badge {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 8px;
+    padding: 2px 7px;
+    background: rgba(255,200,0,.18);
+    border: 1px solid rgba(255,200,0,.45);
+    color: #ffc800;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 20px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    animation: oh-updated-pulse 2s ease-in-out infinite;
+}
+@keyframes oh-updated-pulse {
+    0%,100% { opacity: 1;   box-shadow: 0 0 0 rgba(255,200,0,0); }
+    50%      { opacity: .75; box-shadow: 0 0 8px rgba(255,200,0,.4); }
+}
 </style>' . "\n";
         }
 
@@ -119,13 +162,27 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                 if ($isWeekend && $firstWeekend) { $sepClass = ' oh-weekend-sep'; $firstWeekend = false; }
                 if ($isWeekend && !$hasStart && !$hasKurs) continue;
                 if (!$isWeekend && !$hasStart) continue;
+
+                $isToday   = ($row->datum === $todayStr);
+                // updated_at von heute? → Badge anzeigen
+                $updatedAt = !empty($row->updated_at) ? substr($row->updated_at, 0, 10) : '';
+                $wasUpdatedToday = ($updatedAt === $todayDate && !$isToday);
+                // Heute-Zeile bekommt Pfeil + Glow, andere Tage die heute geändert wurden bekommen Badge
+                $trClass = trim(($isToday ? 'today' : '') . $sepClass);
+
                 if ($isClosed) {
-                    echo '<tr class="geschlossen' . $sepClass . '">';
-                    echo '<td class="col-1-day">' . esc_html($tag) . ':</td>';
+                    echo '<tr class="geschlossen' . ($trClass ? ' ' . $trClass : '') . '">';
+                    $dayLabel = $isToday
+                        ? '<i class="oh-today-arrow">▶</i>' . esc_html($tag)
+                        : esc_html($tag);
+                    echo '<td class="col-1-day">' . $dayLabel . ':</td>';
                     echo '<td class="col-2-start" colspan="3" style="text-align:center;letter-spacing:.15em;font-size:28px;color:rgba(255,59,48,.7)">GESCHLOSSEN</td>';
-                    echo '<td class="col-5-unit"></td></tr>';
+                    echo '<td class="col-5-unit">';
+                    if ($wasUpdatedToday) echo '<span class="oh-updated-badge">↑ Update</span>';
+                    echo '</td></tr>';
                     continue;
                 }
+
                 $start = '';
                 if ($hasStart) { $start = substr($row->start_time, 0, 5); if (substr($start, 2) === ':00') $start = substr($start, 0, 2); }
                 $end = '';
@@ -135,6 +192,7 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                     $dt = new DateTime('@' . $sun_info['sunset']); $dt->setTimezone($tz);
                     $end = $dt->format('H');
                 }
+
                 $stoerer = '';
                 if ($hasKurs) {
                     $parts = [];
@@ -145,20 +203,29 @@ if (!function_exists('opening_hours_pixel_perfect')) {
                     if ($timeStr) $stoerer .= '<span class="st-time">' . esc_html($timeStr) . '</span>';
                     $stoerer .= '</span>';
                 }
-                $isToday = ($row->datum === $today->format('Y-m-d'));
-                $trClass = trim(($isToday ? 'today' : '') . $sepClass);
+
+                // Tag-Label: Heute bekommt animierten Pfeil
+                $dayLabel = $isToday
+                    ? '<i class="oh-today-arrow">▶</i>' . esc_html($tag)
+                    : esc_html($tag);
+
+                // Updated-Badge für andere Tage die heute geändert wurden
+                $updatedBadge = $wasUpdatedToday
+                    ? '<span class="oh-updated-badge">↑ Update</span>'
+                    : '';
+
                 if ($hasStart) {
                     echo '<tr' . ($trClass ? ' class="' . $trClass . '"' : '') . '>';
-                    echo '<td class="col-1-day">'   . esc_html($tag)   . ':</td>';
+                    echo '<td class="col-1-day">'   . $dayLabel   . ':</td>';
                     echo '<td class="col-2-start">' . esc_html($start) . '</td>';
                     echo '<td class="col-3-sep">–</td>';
                     echo '<td class="col-4-end">'   . esc_html($end)   . '</td>';
-                    echo '<td class="col-5-unit">UHR' . $stoerer . '</td></tr>';
+                    echo '<td class="col-5-unit">UHR' . $stoerer . $updatedBadge . '</td></tr>';
                 } elseif ($hasKurs) {
                     echo '<tr' . ($trClass ? ' class="' . $trClass . '"' : '') . '>';
-                    echo '<td class="col-1-day">' . esc_html($tag) . ':</td>';
+                    echo '<td class="col-1-day">' . $dayLabel . ':</td>';
                     echo '<td class="col-2-start" colspan="3" style="color:var(--clr-text-muted,#7a8a8a);font-size:22px;">Kein Wakeboard</td>';
-                    echo '<td class="col-5-unit">' . $stoerer . '</td></tr>';
+                    echo '<td class="col-5-unit">' . $stoerer . $updatedBadge . '</td></tr>';
                 }
             }
             echo '</table></div>';
@@ -297,21 +364,17 @@ if (!function_exists('wcr_sc_merch')) {
 add_shortcode('wcr_instagram', function () {
     wp_enqueue_style('wcr-instagram',  WCR_DS_URL . 'assets/css/wcr-instagram.css', [], WCR_DS_VERSION);
     wp_enqueue_script('wcr-instagram', WCR_DS_URL . 'assets/js/wcr-instagram.js',  [], WCR_DS_VERSION, true);
-
-    // ── hasToken: true wenn Token UND User-ID gesetzt ──
     $ig_token     = (string) get_option('wcr_instagram_token',   '');
     $ig_user_id   = (string) get_option('wcr_instagram_user_id', '');
     $ig_has_token = ($ig_token !== '' && $ig_user_id !== '');
-
     wp_localize_script('wcr-instagram', 'wcrInstagram', [
         'restUrl'   => rest_url(),
         'hashtag'   => ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r "),
         'refresh'   => get_option('wcr_instagram_refresh',   '10'),
         'newHours'  => get_option('wcr_instagram_new_hours', '2'),
         'showUser'  => get_option('wcr_instagram_show_user', '1'),
-        'hasToken'  => $ig_has_token,   // ← NEU: Gate für Placeholder
+        'hasToken'  => $ig_has_token,
     ]);
-
     $posts       = WCR_Instagram::get_posts();
     $location    = get_option('wcr_instagram_location_label', '');
     $cta_active  = get_option('wcr_instagram_cta_active', 1);
@@ -322,10 +385,8 @@ add_shortcode('wcr_instagram', function () {
     $hashtag_str = '#' . ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r ");
     $new_ms      = (int)get_option('wcr_instagram_new_hours', 2) * 3600;
     $show_user   = (bool)get_option('wcr_instagram_show_user', 1);
-
     ob_start(); ?>
     <div class="wcr-instagram-wrap">
-
         <?php if ($weekly): ?>
         <div class="wcr-insta-weekly">
             <img src="<?= esc_url($weekly['media_url'] ?? $weekly['thumbnail_url'] ?? '') ?>" alt="">
@@ -333,15 +394,11 @@ add_shortcode('wcr_instagram', function () {
             <div class="wcr-insta-weekly-user"><?= !empty($weekly['username']) ? '@' . esc_html($weekly['username']) : '' ?></div>
         </div>
         <?php endif; ?>
-
         <div class="wcr-insta-header">
             <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
             <span>Wake &amp; Camp · Instagram</span>
-            <?php if ($location): ?>
-            <span class="wcr-insta-location">📍 <?= esc_html($location) ?></span>
-            <?php endif; ?>
+            <?php if ($location): ?><span class="wcr-insta-location">📍 <?= esc_html($location) ?></span><?php endif; ?>
         </div>
-
         <div class="wcr-insta-grid" id="wcr-insta-grid">
             <?php foreach (array_slice($posts, 0, 8) as $p):
                 $is_new = (time() - strtotime($p['timestamp'])) < $new_ms;
@@ -350,8 +407,7 @@ add_shortcode('wcr_instagram', function () {
             ?>
             <div class="wcr-insta-post">
                 <?php if ($p['media_type'] === 'VIDEO'): ?>
-                    <video src="<?= esc_url($p['media_url']) ?>" autoplay muted loop playsinline
-                           poster="<?= esc_url($p['thumbnail_url'] ?? '') ?>"></video>
+                    <video src="<?= esc_url($p['media_url']) ?>" autoplay muted loop playsinline poster="<?= esc_url($p['thumbnail_url'] ?? '') ?>"></video>
                     <span class="wcr-insta-badge-type">▶</span>
                 <?php elseif ($p['media_type'] === 'CAROUSEL_ALBUM'): ?>
                     <img src="<?= esc_url($p['media_url'] ?? $p['thumbnail_url'] ?? '') ?>" alt="" loading="lazy">
@@ -359,9 +415,7 @@ add_shortcode('wcr_instagram', function () {
                 <?php else: ?>
                     <img src="<?= esc_url($p['media_url'] ?? $p['thumbnail_url'] ?? '') ?>" alt="" loading="lazy">
                 <?php endif; ?>
-                <?php if ($is_new): ?>
-                    <span class="wcr-insta-badge-new">Neu</span>
-                <?php endif; ?>
+                <?php if ($is_new): ?><span class="wcr-insta-badge-new">Neu</span><?php endif; ?>
                 <?php if ($show_user): ?>
                 <div class="wcr-insta-overlay">
                     <span class="wcr-insta-username"><?= esc_html($user) ?></span>
@@ -371,20 +425,13 @@ add_shortcode('wcr_instagram', function () {
             </div>
             <?php endforeach; ?>
         </div>
-
         <div class="wcr-insta-footer">
-            <?php if ($cta_active && $cta_text): ?>
-            <div class="wcr-insta-footer-cta"><?= esc_html($cta_text) ?></div>
-            <?php endif; ?>
+            <?php if ($cta_active && $cta_text): ?><div class="wcr-insta-footer-cta"><?= esc_html($cta_text) ?></div><?php endif; ?>
             <div class="wcr-insta-footer-sub"><?= esc_html($hashtag_str) ?></div>
         </div>
-
         <?php if ($qr_active && $qr_url): ?>
-        <div class="wcr-insta-qr">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?= urlencode($qr_url) ?>" alt="QR">
-        </div>
+        <div class="wcr-insta-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?= urlencode($qr_url) ?>" alt="QR"></div>
         <?php endif; ?>
-
     </div>
     <?php return ob_get_clean();
 });
@@ -395,51 +442,39 @@ add_shortcode('wcr_instagram', function () {
 add_shortcode('wcr_instagram_video', function () {
     wp_enqueue_style('wcr-iv',  WCR_DS_URL . 'assets/css/wcr-instagram-video.css', [], WCR_DS_VERSION);
     wp_enqueue_script('wcr-iv', WCR_DS_URL . 'assets/js/wcr-instagram-video.js',  [], WCR_DS_VERSION, true);
-
-    // ── hasToken: true wenn Token UND User-ID gesetzt ──
     $ig_token     = (string) get_option('wcr_instagram_token',   '');
     $ig_user_id   = (string) get_option('wcr_instagram_user_id', '');
     $ig_has_token = ($ig_token !== '' && $ig_user_id !== '');
-
     wp_localize_script('wcr-iv', 'wcrInstagramVideo', [
         'restUrl'  => rest_url(),
         'hashtag'  => ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r "),
-        'hasToken' => $ig_has_token,   // ← NEU: Gate für Placeholder
+        'hasToken' => $ig_has_token,
     ]);
-
     $videos   = WCR_Instagram::get_videos();
     $count    = count($videos);
     $hashtag  = '#' . ltrim(get_option('wcr_instagram_hashtags', 'wakecampruhlsdorf'), "#\n\r ");
     $first    = $videos[0] ?? null;
-
     ob_start(); ?>
     <div class="wcr-iv-wrap">
         <video class="wcr-iv-player" id="wcr-iv-player"
                <?= $first ? 'src="' . esc_url($first['media_url'] ?? '') . '"' : '' ?>
                autoplay muted playsinline preload="auto"
                <?= $first && !empty($first['thumbnail_url']) ? 'poster="' . esc_url($first['thumbnail_url']) . '"' : '' ?>></video>
-
         <div class="wcr-iv-fade"></div>
         <div class="wcr-iv-mute" id="wcr-iv-mute">🔇</div>
-
         <div class="wcr-iv-top">
-            <div class="wcr-iv-logo">
-                <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-            </div>
+            <div class="wcr-iv-logo"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></div>
             <div class="wcr-iv-meta">
                 <span class="wcr-iv-username" id="wcr-iv-username"><?= $first && !empty($first['username']) ? '@' . esc_html($first['username']) : esc_html($hashtag) ?></span>
                 <span class="wcr-iv-time"     id="wcr-iv-time"><?= $first ? esc_html(human_time_diff(strtotime($first['timestamp']), time())) : '' ?></span>
             </div>
             <span class="wcr-iv-counter" id="wcr-iv-counter">1 / <?= $count ?></span>
         </div>
-
         <div class="wcr-iv-bottom">
             <div class="wcr-iv-hashtag"><?= esc_html($hashtag) ?></div>
             <div class="wcr-iv-dots">
                 <?php for ($i = 0; $i < $count; $i++): ?>
-                <div class="wcr-iv-dot <?= $i === 0 ? 'active' : '' ?>">
-                    <div class="wcr-iv-dot-fill"></div>
-                </div>
+                <div class="wcr-iv-dot <?= $i === 0 ? 'active' : '' ?>"><div class="wcr-iv-dot-fill"></div></div>
                 <?php endfor; ?>
             </div>
         </div>
