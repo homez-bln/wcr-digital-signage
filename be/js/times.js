@@ -21,8 +21,8 @@ function clearTimes(date) {
         sendData(date, 'end_time', '', () => {
             if (endInput) { endInput.classList.remove('saving'); endInput.classList.add('saved'); setTimeout(() => endInput.classList.remove('saved'), 1200); }
             if (btn) btn.remove();
-        }, (err) => { if (endInput) endInput.classList.add('error'); alert('Fehler beim Löschen der Endzeit: ' + err); });
-    }, (err) => { if (startInput) startInput.classList.add('error'); alert('Fehler beim Löschen der Startzeit: ' + err); });
+        }, err => { if (endInput) endInput.classList.add('error'); alert('Fehler: ' + err); });
+    }, err => { if (startInput) startInput.classList.add('error'); alert('Fehler: ' + err); });
 }
 
 function toggleCourse(date, col, toggleBtn) {
@@ -42,12 +42,9 @@ function toggleCourse(date, col, toggleBtn) {
         const saveText = newVal ? textVal : '';
         sendData(date, textCol, saveText, () => {
             if (!newVal && textInput) textInput.value = fallback;
-        }, (err) => { console.warn('Text-Speicherfehler: ' + err); });
-    }, (err) => {
-        toggleBtn.style.opacity = '1';
-        pill.classList.toggle('active');
-        alert('Fehler beim Speichern: ' + err);
-    }, { preserve_start_time: startVal, preserve_end_time: endVal });
+        }, err => console.warn('Text-Fehler: ' + err));
+    }, err => { toggleBtn.style.opacity = '1'; pill.classList.toggle('active'); alert('Fehler: ' + err); },
+    { preserve_start_time: startVal, preserve_end_time: endVal });
 }
 
 function updateCourseText(input, date, col) {
@@ -65,59 +62,51 @@ function sendData(date, col, val, onSuccess, onError, extra = {}) {
         body: JSON.stringify({ datum: date, field: col, value: val, ...extra })
     })
     .then(r => r.json())
-    .then(data => { if (data.success) onSuccess(); else onError(data.error || 'Unbekannter Fehler'); })
+    .then(d => { if (d.success) onSuccess(); else onError(d.error || 'Unbekannter Fehler'); })
     .catch(err => onError(err.message || err));
 }
 
 /* ================================================================
-   Screenshot: Seite öffnet sich selbst mit ?wcr_screenshot=1,
-   macht html2canvas intern (same-origin!) und schickt JPG ans BE.
-   BE-Fenster empfängt postMessage und startet Download.
+   Screenshot: Popup öffnet die Seite mit ?wcr_screenshot=1
+   Die Seite selbst macht html2canvas + direkten Blob-Download.
+   BE-Fenster hört auf postMessage und schließt den Button.
    ================================================================ */
 function downloadAsJPG() {
-    const btn = event.target;
+    const btn = event.currentTarget || event.target;
+    const origText = btn.textContent;
     btn.textContent = 'Lädt…';
     btn.disabled    = true;
 
-    // Popup öffnen — 1080×1920, zentriert
-    const pw = 1080, ph = 600; // sichtbare Höhe begrenzen
+    const pw   = 1080, ph = 600;
     const left = Math.round((screen.width  - pw) / 2);
     const top  = Math.round((screen.height - ph) / 2);
     const popup = window.open(
         'https://wcr-webpage.de/oeffnungszeiten-story/?wcr_screenshot=1',
-        'wcr_screenshot',
+        'wcr_shot',
         'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top
     );
 
     if (!popup) {
-        alert('Popup wurde blockiert — bitte Popup-Blocker für diese Seite erlauben.');
-        btn.textContent = 'Als JPG';
+        alert('Popup blockiert — bitte Popup-Blocker für diese Seite erlauben.');
+        btn.textContent = origText;
         btn.disabled    = false;
         return;
     }
 
-    // Auf Signal von der Seite warten
-    function onMessage(e) {
+    function onMsg(e) {
         if (!e.data || !e.data.wcr_screenshot_done) return;
-        window.removeEventListener('message', onMessage);
-        btn.textContent = 'Als JPG';
+        window.removeEventListener('message', onMsg);
+        btn.textContent = origText;
         btn.disabled    = false;
-
-        // Direkter Download des gespeicherten Bildes
-        const a = document.createElement('a');
-        a.href     = e.data.url + '?t=' + Date.now();
-        a.download = 'oeffnungszeiten.jpg';
-        a.click();
     }
-    window.addEventListener('message', onMessage);
+    window.addEventListener('message', onMsg);
 
-    // Timeout falls Popup geschlossen wird ohne Signal
+    // Timeout-Fallback
     setTimeout(function () {
-        window.removeEventListener('message', onMessage);
-        if (!popup.closed) popup.close();
-        btn.textContent = 'Als JPG';
+        window.removeEventListener('message', onMsg);
+        btn.textContent = origText;
         btn.disabled    = false;
-    }, 20000);
+    }, 30000);
 }
 
 function toggleClosed(date, btn) {
@@ -133,17 +122,12 @@ function toggleClosed(date, btn) {
         const existBadge = cell.querySelector('.badge-closed');
         if (newVal) {
             cell.classList.add('cell-closed');
-            if (!existBadge) {
-                const badge = document.createElement('span');
-                badge.className   = 'badge-closed';
-                badge.textContent = 'Geschlossen';
-                cell.querySelector('div').appendChild(badge);
-            }
-            ['start', 'end'].forEach(t => { const i = document.getElementById(t + '-' + date); if (i) i.disabled = true; });
+            if (!existBadge) { const b2 = document.createElement('span'); b2.className = 'badge-closed'; b2.textContent = 'Geschlossen'; cell.querySelector('div').appendChild(b2); }
+            ['start','end'].forEach(t => { const i = document.getElementById(t+'-'+date); if(i) i.disabled=true; });
         } else {
             cell.classList.remove('cell-closed');
             if (existBadge) existBadge.remove();
-            ['start', 'end'].forEach(t => { const i = document.getElementById(t + '-' + date); if (i) i.disabled = false; });
+            ['start','end'].forEach(t => { const i = document.getElementById(t+'-'+date); if(i) i.disabled=false; });
         }
-    }, (err) => { btn.style.opacity = '1'; alert('Fehler: ' + err); });
+    }, err => { btn.style.opacity = '1'; alert('Fehler: ' + err); });
 }
