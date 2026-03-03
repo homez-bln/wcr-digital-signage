@@ -11,10 +11,17 @@
 
 if (!defined('ABSPATH')) exit;
 
-require_once plugin_dir_path(__FILE__) . 'includes/db.php';
-require_once plugin_dir_path(__FILE__) . 'includes/enqueue.php';
-require_once plugin_dir_path(__FILE__) . 'includes/rest-api.php';
-require_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';
+/* ====================================================
+   PLUGIN-KONSTANTEN
+==================================================== */
+define( 'WCR_DS_VERSION', '1.1.0' );
+define( 'WCR_DS_URL',     plugin_dir_url( __FILE__ ) );
+define( 'WCR_DS_PATH',    plugin_dir_path( __FILE__ ) );
+
+require_once WCR_DS_PATH . 'includes/db.php';
+require_once WCR_DS_PATH . 'includes/enqueue.php';
+require_once WCR_DS_PATH . 'includes/rest-api.php';
+require_once WCR_DS_PATH . 'includes/shortcodes.php';
 
 /* ====================================================
    DEFAULTS (müssen identisch mit BE $DEFAULTS sein)
@@ -40,7 +47,6 @@ function wcr_ds_defaults() {
 ==================================================== */
 function wcr_ds_get( $key ) {
     $raw  = get_option( 'wcr_ds_options', array() );
-    // BE speichert per PHP serialize() — WP's get_option deserialisiert automatisch
     $opts = is_array( $raw ) ? $raw : array();
     $defs = wcr_ds_defaults();
     if ( isset( $opts[ $key ] ) && '' !== $opts[ $key ] ) {
@@ -50,7 +56,7 @@ function wcr_ds_get( $key ) {
 }
 
 /* ====================================================
-   DYNAMISCHES CSS — liest aus BE-gespeicherten Werten
+   DYNAMISCHES CSS
 ==================================================== */
 add_action( 'wp_head', 'wcr_ds_dynamic_css', 99 );
 function wcr_ds_dynamic_css() {
@@ -71,7 +77,6 @@ function wcr_ds_dynamic_css() {
         $theme = 'glass';
     }
 
-    // Google Font laden
     $sys = array( 'Segoe UI', 'Arial', 'Helvetica', 'Georgia', 'Verdana', 'Tahoma' );
     if ( ! in_array( $ff, $sys, true ) ) {
         $gf = 'https://fonts.googleapis.com/css2?family=' . rawurlencode( $ff ) . ':wght@400;600;700;800;900&display=swap';
@@ -134,8 +139,8 @@ if ( ! function_exists( 'wcr_ds_hex_to_rgb' ) ) {
 ==================================================== */
 add_action( 'wp_enqueue_scripts', 'wcr_ds_enqueue' );
 function wcr_ds_enqueue() {
-    wp_enqueue_style(  'wcr-ds-global', plugin_dir_url( __FILE__ ) . 'assets/css/wcr-ds-global.css', array(), '3.1.0' );
-    wp_enqueue_script( 'wcr-ds-utils',  plugin_dir_url( __FILE__ ) . 'assets/js/wcr-ds-utils.js',   array(), '3.1.0', true );
+    wp_enqueue_style(  'wcr-ds-global', WCR_DS_URL . 'assets/css/wcr-ds-global.css', array(), WCR_DS_VERSION );
+    wp_enqueue_script( 'wcr-ds-utils',  WCR_DS_URL . 'assets/js/wcr-ds-utils.js',   array(), WCR_DS_VERSION, true );
 }
 function wcr_ds_load_gsap() {
     if ( ! wp_script_is( 'gsap', 'enqueued' ) ) {
@@ -194,7 +199,7 @@ function wcr_sc_essen( $atts ) {
 }
 
 function wcr_sc_kaffee( $atts ) {
-    wp_enqueue_script( 'wcr-kaffee', plugin_dir_url( __FILE__ ) . 'assets/js/wcr-kaffee.js', array(), '3.1.0', true );
+    wp_enqueue_script( 'wcr-kaffee', WCR_DS_URL . 'assets/js/wcr-kaffee.js', array(), WCR_DS_VERSION, true );
     $out  = '<div class="ds-header">';
     $out .= '<div class="ds-header-line"></div>';
     $out .= '<div class="ds-header-inner"><div class="ds-dot"></div>Kaffeekarte<div class="ds-dot"></div></div>';
@@ -206,7 +211,7 @@ function wcr_sc_kaffee( $atts ) {
 
 function wcr_sc_windmap( $atts ) {
     wcr_ds_load_leaflet();
-    wp_enqueue_script( 'wcr-windmap', plugin_dir_url( __FILE__ ) . 'assets/js/wcr-windmap.js', array( 'leaflet-js' ), '3.1.0', true );
+    wp_enqueue_script( 'wcr-windmap', WCR_DS_URL . 'assets/js/wcr-windmap.js', array( 'leaflet-js' ), WCR_DS_VERSION, true );
     $out  = '<div id="wcr-windmap-wrap">' . "\n";
     $out .= '<div id="map"></div>' . "\n";
     $out .= '<canvas id="wind-canvas"></canvas>' . "\n";
@@ -240,7 +245,7 @@ function wcr_sc_windmap( $atts ) {
 }
 
 function wcr_sc_wetter( $atts ) {
-    wp_enqueue_script( 'wcr-wetter', plugin_dir_url(__FILE__) . 'assets/js/wcr-wetter.js', array(), '3.2.0', true );
+    wp_enqueue_script( 'wcr-wetter', WCR_DS_URL . 'assets/js/wcr-wetter.js', array(), '3.2.0', true );
     $out  = '<div id="wetter-wrap">';
     $out .= '<header>';
     $out .= '<div><div id="w-location">Ruhlsdorf</div><div style="font-size:1.2rem;color:#64748b;">Aktuelles Wetter</div></div>';
@@ -263,6 +268,6 @@ function wcr_sc_wetter( $atts ) {
 
 function wcr_sc_starter_pack( $atts ) {
     wcr_ds_load_gsap();
-    wp_enqueue_script( 'wcr-starter-pack', plugin_dir_url( __FILE__ ) . 'assets/js/wcr-starter-pack.js', array( 'gsap' ), '3.1.0', true );
+    wp_enqueue_script( 'wcr-starter-pack', WCR_DS_URL . 'assets/js/wcr-starter-pack.js', array( 'gsap' ), WCR_DS_VERSION, true );
     return '<div id="sp-display"></div>' . "\n";
 }
