@@ -2,6 +2,8 @@
 
 /* ================================================================
    PREVIEW RELOAD
+   Nach jeder gespeicherten Zeit wird der iFrame nach 2s neu geladen.
+   Debounced: mehrere schnelle Änderungen = nur ein Reload.
    ================================================================ */
 var _previewTimer = null;
 function schedulePreviewReload() {
@@ -40,7 +42,7 @@ function updateTime(input, date, col) {
 }
 
 function clearTimes(date) {
-    if (!confirm('Start- und Endzeit f\u00fcr ' + date + ' wirklich l\u00f6schen?')) return;
+    if (!confirm('Start- und Endzeit für ' + date + ' wirklich löschen?')) return;
     const startInput = document.getElementById('start-' + date);
     const endInput   = document.getElementById('end-'   + date);
     const btn        = document.querySelector('[onclick="clearTimes(\'' + date + '\')"]');
@@ -61,35 +63,22 @@ function toggleCourse(date, col, toggleBtn) {
     const wasActive = pill.classList.contains('active');
     const newVal    = wasActive ? 0 : 1;
     const textInput = pill.querySelector('.course-input');
+    const textVal   = textInput ? textInput.value : '';
     const textCol   = col + '_text';
     const startVal  = document.getElementById('start-' + date)?.value ?? '';
     const endVal    = document.getElementById('end-'   + date)?.value ?? '';
-
     pill.classList.toggle('active');
     toggleBtn.style.opacity = '0.5';
-
     sendData(date, col, newVal, () => {
         toggleBtn.style.opacity = '1';
-
-        // FIX: Text immer aus dem Input lesen — beim Deaktivieren NICHT leeren,
-        // sondern den aktuellen Wert behalten (DB speichert ihn, Frontend blendet ihn aus).
-        const currentText = textInput ? textInput.value : '';
-        const fallback    = textInput ? (textInput.dataset.fallback || '') : '';
-
-        // Nur speichern wenn aktiviert ODER wenn bereits ein Text vorhanden ist
-        // (kein leerer String beim Deaktivieren).
-        const saveText = newVal ? currentText : (currentText || fallback);
-
+        const fallback = textInput ? (textInput.dataset.fallback || '') : '';
+        const saveText = newVal ? textVal : '';
         sendData(date, textCol, saveText, () => {
-            // Beim Deaktivieren: Fallback anzeigen, aber gespeicherter Wert bleibt erhalten
-            if (!newVal && textInput && !currentText) textInput.value = fallback;
+            if (!newVal && textInput) textInput.value = fallback;
             schedulePreviewReload();
         }, err => console.warn('Text-Fehler: ' + err));
-    }, err => {
-        toggleBtn.style.opacity = '1';
-        pill.classList.toggle('active'); // r\u00fcckg\u00e4ngig
-        alert('Fehler: ' + err);
-    }, { preserve_start_time: startVal, preserve_end_time: endVal });
+    }, err => { toggleBtn.style.opacity = '1'; pill.classList.toggle('active'); alert('Fehler: ' + err); },
+    { preserve_start_time: startVal, preserve_end_time: endVal });
 }
 
 function updateCourseText(input, date, col) {
@@ -120,7 +109,7 @@ function sendData(date, col, val, onSuccess, onError, extra = {}) {
 function downloadAsJPG() {
     const btn = event.currentTarget || event.target;
     const origText = btn.textContent;
-    btn.textContent = 'L\u00e4dt\u2026';
+    btn.textContent = 'Lädt…';
     btn.disabled    = true;
 
     const pw   = 1080, ph = 600;
@@ -133,7 +122,7 @@ function downloadAsJPG() {
     );
 
     if (!popup) {
-        alert('Popup blockiert \u2014 bitte Popup-Blocker f\u00fcr diese Seite erlauben.');
+        alert('Popup blockiert — bitte Popup-Blocker für diese Seite erlauben.');
         btn.textContent = origText;
         btn.disabled    = false;
         return;
@@ -160,8 +149,8 @@ function toggleClosed(date, btn) {
     sendData(date, 'is_closed', newVal, () => {
         btn.style.opacity = '1';
         btn.classList.toggle('active');
-        btn.textContent = newVal ? '\uD83D\uDD13' : '\uD83D\uDD12';
-        btn.title       = newVal ? 'Wieder \u00f6ffnen' : 'Als geschlossen markieren';
+        btn.textContent = newVal ? '🔓' : '🔒';
+        btn.title       = newVal ? 'Wieder öffnen' : 'Als geschlossen markieren';
         const cell       = btn.closest('.cell');
         const existBadge = cell.querySelector('.badge-closed');
         if (newVal) {
