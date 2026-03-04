@@ -67,10 +67,12 @@ function opening_hours_pixel_perfect( $atts ) {
             break;
     }
 
+    // Originale Tabellen- und Spaltennamen aus der DB:
+    // Tabelle: openinghours  Spalten: datum, starttime, endtime
     $query   = $externe_db->prepare(
-        "SELECT datum, start_time, end_time FROM opening_hours
+        "SELECT datum, starttime, endtime FROM openinghours
          WHERE datum >= %s AND datum <= %s
-           AND start_time IS NOT NULL AND start_time != ''
+           AND starttime IS NOT NULL AND starttime != ''
          ORDER BY datum ASC",
         $von, $bis
     );
@@ -88,12 +90,12 @@ function opening_hours_pixel_perfect( $atts ) {
             $day_number = date( 'N', $timestamp );
             $tag        = $wochentage_kurz[ $day_number ];
 
-            // Start-Zeit immer als HH:MM
-            $start = substr( $row->start_time, 0, 5 );
+            // Start immer HH:MM (war vorher nur HH)
+            $start = substr( $row->starttime, 0, 5 );
 
-            // End-Zeit: wenn gesetzt → HH:MM, sonst Sonnenuntergang
-            if ( ! empty( $row->end_time ) && $row->end_time !== 'NULL' ) {
-                $end = substr( $row->end_time, 0, 5 );
+            // End: HH:MM wenn gesetzt, sonst Sonnenuntergang
+            if ( ! empty( $row->endtime ) && $row->endtime !== 'NULL' ) {
+                $end = substr( $row->endtime, 0, 5 );
             } else {
                 $sun_info = date_sun_info( $timestamp, $lat_berlin, $lon_berlin );
                 $dt       = new DateTime( '@' . $sun_info['sunset'] );
@@ -143,8 +145,9 @@ add_shortcode( 'randomsplitphotos', function( $atts ) {
     try {
         $ionos = get_ionos_db_connection();
         if ( $ionos ) {
+            // Originale Tabellen-/Spaltennamen: mediafiles, isactive
             $active_names = $ionos->get_col( $ionos->prepare(
-                "SELECT filename FROM media_files WHERE folder = %s AND is_active = 1", $rel
+                "SELECT filename FROM mediafiles WHERE folder = %s AND isactive = 1", $rel
             ) );
             if ( ! empty( $active_names ) ) {
                 $files = array_values( array_filter( $files, function( $path ) use ( $active_names ) {
@@ -156,9 +159,9 @@ add_shortcode( 'randomsplitphotos', function( $atts ) {
 
     if ( count( $files ) < 2 ) return '';
 
-    $key      = 'rs_last_pair_' . md5( $rel );
-    $last     = get_transient( $key );
-    $exclude  = is_array( $last ) ? $last : [];
+    $key        = 'rs_last_pair_' . md5( $rel );
+    $last       = get_transient( $key );
+    $exclude    = is_array( $last ) ? $last : [];
     $candidates = array_values( array_diff( $files, $exclude ) );
     if ( count( $candidates ) < 2 ) $candidates = $files;
 
@@ -186,13 +189,13 @@ function simple_opening_hours_photo( $atts ) {
     $response = file_get_contents( PHOTO_API_URL );
     if ( ! $response ) return '<!-- API nicht erreichbar -->';
     $data = json_decode( $response, true );
-    if ( ! $data || ! $data['success'] ) return '<!-- Kein Foto verfügbar -->';
+    if ( ! $data || ! $data['success'] ) return '<!-- Kein Foto verf\u00fcgbar -->';
 
     $inline_style = "width:{$atts['width']};height:{$atts['height']};";
     if ( ! empty( $atts['style'] ) ) $inline_style .= $atts['style'];
 
     return sprintf(
-        '<img src="%s" alt="Öffnungszeiten" class="%s" style="%s" loading="lazy">',
+        '<img src="%s" alt="\u00d6ffnungszeiten" class="%s" style="%s" loading="lazy">',
         esc_url( $data['url'] ),
         esc_attr( $atts['class'] ),
         esc_attr( $inline_style )
