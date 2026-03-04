@@ -116,6 +116,37 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
+    // ── Obstacles Map ──
+    // Erwartete Tabelle in der externen IONOS-DB:
+    // CREATE TABLE obstacles (
+    //   id INT AUTO_INCREMENT PRIMARY KEY,
+    //   name VARCHAR(255) NOT NULL,
+    //   type VARCHAR(50)  NOT NULL,
+    //   icon_url VARCHAR(500) NULL,
+    //   pos_x DECIMAL(6,3) NOT NULL,   -- 0–100 = Prozent auf der Karte (X)
+    //   pos_y DECIMAL(6,3) NOT NULL,   -- 0–100 = Prozent auf der Karte (Y)
+    //   rotation DECIMAL(6,2) DEFAULT 0,
+    //   active TINYINT(1) DEFAULT 1,
+    //   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    //   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    // );
+    register_rest_route('wakecamp/v1', '/obstacles', [
+        'methods'             => 'GET',
+        'callback'            => function() {
+            $db = get_ionos_db_connection();
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
+            $rows = $db->get_results(
+                "SELECT id, name, type, icon_url, pos_x, pos_y, rotation, active
+                 FROM obstacles
+                 WHERE active = 1
+                 ORDER BY id ASC",
+                ARRAY_A
+            ) ?: [];
+            return rest_ensure_response($rows);
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
     // ── Single Item by ID ──
     register_rest_route('wakecamp/v1', '/item/(?P<id>[0-9]+)', [
         'methods'             => 'GET',

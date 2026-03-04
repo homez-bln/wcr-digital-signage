@@ -306,6 +306,72 @@ if (!function_exists('wcr_db_item_shortcode')) {
     add_shortcode('wcr_db', 'wcr_db_item_shortcode');
 }
 
+// ── Obstacles Map Shortcode ──
+if (!function_exists('wcr_sc_obstacles_map')) {
+    function wcr_sc_obstacles_map($atts) {
+        $atts = shortcode_atts([
+            'id'     => 'wcr-obstacles-map',
+            'width'  => '100%',
+            'height' => '100%',
+            'bg'     => '', // Hintergrundbild des Sees (Vogelperspektive)
+        ], $atts, 'wcr_obstacles_map');
+
+        wp_enqueue_script(
+            'wcr-obstacles-map',
+            WCR_DS_URL . 'assets/js/wcr-obstacles-map.js',
+            [],
+            defined('WCR_DS_VERSION') ? WCR_DS_VERSION : '1.0.0',
+            true
+        );
+
+        // REST-URL an JS übergeben
+        $api_url = rest_url('wakecamp/v1/obstacles');
+        wp_localize_script('wcr-obstacles-map', 'wcrObstaclesMap', [
+            'apiUrl' => esc_url_raw($api_url),
+        ]);
+
+        ob_start();
+
+        static $css_done_obstacles = false;
+        if (!$css_done_obstacles) {
+            $css_done_obstacles = true;
+            echo '<style>
+.wcr-obstacles-map {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center center;
+    overflow: hidden;
+}
+.wcr-obstacles-map .wcr-obstacle {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center center;
+    transform: translate(-50%, -50%);
+}
+</style>' . "\n";
+        }
+
+        $style = '';
+        if (!empty($atts['width']))  $style .= 'width:'  . esc_attr($atts['width'])  . ';';
+        if (!empty($atts['height'])) $style .= 'height:' . esc_attr($atts['height']) . ';';
+        if (!empty($atts['bg']))     $style .= 'background-image:url(' . esc_url($atts['bg']) . ');';
+
+        echo '<div id="' . esc_attr($atts['id']) . '"'
+           . ' class="wcr-obstacles-map"'
+           . ' style="' . esc_attr($style) . '"'
+           . ' data-api="' . esc_url($api_url) . '"'
+           . '></div>';
+
+        return ob_get_clean();
+    }
+    add_shortcode('wcr_obstacles_map', 'wcr_sc_obstacles_map');
+}
+
 // ── Merch Seite ──
 if (!function_exists('wcr_sc_merch')) {
     function wcr_sc_merch($atts) {
