@@ -314,14 +314,22 @@ if (!function_exists('wcr_sc_obstacles_map')) {
         $atts = shortcode_atts([
             'id'     => 'wcr-obstacles-map',
             'width'  => '100%',
-            'height' => '500px',  // feste Fallback-Höhe statt 100%
+            'height' => '500px',
             'bg'     => '',
         ], $atts, 'wcr_obstacles_map');
 
+        // ── Leaflet + Obstacles CSS + JS laden ──
+        wcr_ds_load_leaflet();
+        wp_enqueue_style(
+            'wcr-obstacles-map-css',
+            WCR_DS_URL . 'assets/css/wcr-obstacles-map.css',
+            ['leaflet-css'],
+            defined('WCR_DS_VERSION') ? WCR_DS_VERSION : '1.0.0'
+        );
         wp_enqueue_script(
             'wcr-obstacles-map',
             WCR_DS_URL . 'assets/js/wcr-obstacles-map.js',
-            [],
+            ['leaflet-js'],
             defined('WCR_DS_VERSION') ? WCR_DS_VERSION : '1.0.0',
             true
         );
@@ -331,7 +339,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
             'apiUrl' => esc_url_raw($api_url),
         ]);
 
-        // ── Obstacles aus DB laden (wpdb) – Fallback auf Platzhalter wenn leer ──
+        // ── Obstacles aus DB laden – Fallback auf Platzhalter wenn leer ──
         $obstacles      = [];
         $is_placeholder = true;
         $db             = get_ionos_db_connection();
@@ -367,82 +375,13 @@ if (!function_exists('wcr_sc_obstacles_map')) {
 
         ob_start();
 
-        static $css_done_obstacles = false;
-        if (!$css_done_obstacles) {
-            $css_done_obstacles = true;
-            ?>
-<style>
-.wcr-obstacles-map {
-    position: relative;
-    width: 100%;
-    min-height: 300px; /* Fallback falls h=100% kollabiert */
-    background-size: cover;
-    background-position: center center;
-    background-color: #1a3a4a;
-    overflow: hidden;
-    border-radius: 12px;
-}
-.wcr-obstacle {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    cursor: default;
-    z-index: 2;
-}
-.wcr-obstacle-icon {
-    width: 52px;
-    height: 52px;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    line-height: 1;
-    filter: drop-shadow(0 2px 6px rgba(0,0,0,.5));
-}
-.wcr-obstacle-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: #fff;
-    text-shadow: 0 1px 4px rgba(0,0,0,.8);
-    white-space: nowrap;
-    letter-spacing: .03em;
-}
-.wcr-obstacle.is-placeholder .wcr-obstacle-icon {
-    background: rgba(255,255,255,.12);
-    border: 2px dashed rgba(255,255,255,.3);
-    border-radius: 10px;
-}
-.wcr-obstacles-placeholder-hint {
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,.55);
-    color: rgba(255,255,255,.6);
-    font-size: 11px;
-    padding: 4px 12px;
-    border-radius: 20px;
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 3;
-}
-</style>
-<?php
-        }
-
         $style = '';
         if (!empty($atts['width']))  $style .= 'width:'  . esc_attr($atts['width'])  . ';';
         if (!empty($atts['height'])) $style .= 'height:' . esc_attr($atts['height']) . ';';
-        if (!empty($atts['bg']))     $style .= 'background-image:url(' . esc_url($atts['bg']) . ');';
 
         echo '<div id="' . esc_attr($atts['id']) . '" class="wcr-obstacles-map" style="' . esc_attr($style) . '" data-api="' . esc_url($api_url) . '">';
 
+        // PHP-Platzhalter nur wenn keine echten Geo-Koordinaten vorhanden
         foreach ($obstacles as $obs) {
             $px    = (float)($obs['pos_x']    ?? 50);
             $py    = (float)($obs['pos_y']    ?? 50);
