@@ -1,31 +1,56 @@
 /* ── Obstacles Map ── */
 .wcr-obstacles-map {
     position: relative;
-    width: 100%;
-    min-height: 300px;
     overflow: hidden;
-    border-radius: 12px;
     background: #1a3a4a;
 }
 
-/* Leaflet Attribution klein halten */
-.wcr-obstacles-map .leaflet-control-attribution {
-    font-size: 9px !important;
-    background: rgba(0,0,0,.45) !important;
-    color: rgba(255,255,255,.5) !important;
-    border-radius: 4px 0 0 0;
+/* ───────────────────────────────────────────────────────
+   Leaflet Layer-Stack z-index Fixe
+   Tile-Pane bleibt unten, Marker drüber
+─────────────────────────────────────────────────────── */
+.wcr-obstacles-map .leaflet-map-pane         { z-index: 1 !important; }
+.wcr-obstacles-map .leaflet-tile-pane        { z-index: 2 !important; }
+.wcr-obstacles-map .leaflet-overlay-pane     { z-index: 3 !important; }
+.wcr-obstacles-map .leaflet-shadow-pane      { z-index: 4 !important; }
+.wcr-obstacles-map .leaflet-marker-pane      { z-index: 500 !important; }
+.wcr-obstacles-map .leaflet-tooltip-pane     { z-index: 501 !important; }
+.wcr-obstacles-map .leaflet-popup-pane       { z-index: 502 !important; }
+.wcr-obstacles-map .leaflet-control-container{ z-index: 800 !important; }
+
+/* Grid-Linien der Tile-Kacheln komplett ausblenden */
+.wcr-obstacles-map .leaflet-tile {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
-.wcr-obstacles-map .leaflet-control-attribution a {
-    color: rgba(255,255,255,.5) !important;
+.wcr-obstacles-map .leaflet-container {
+    background: #e8e0d8;
+    outline: none !important;
 }
 
-/* DivIcon Reset */
+/* ── Attribution klein ── */
+.wcr-obstacles-map .leaflet-control-attribution {
+    font-size: 9px !important;
+    background: rgba(0,0,0,.40) !important;
+    color: rgba(255,255,255,.45) !important;
+    border-radius: 4px 0 0 0;
+    backdrop-filter: blur(4px);
+}
+.wcr-obstacles-map .leaflet-control-attribution a {
+    color: rgba(255,255,255,.45) !important;
+}
+
+/* ── DivIcon: kein Rahmen, kein Hintergrund ── */
 .wcr-obstacles-map .wcr-leaflet-obstacle {
     background: none !important;
     border: none !important;
+    box-shadow: none !important;
 }
 
-/* Fallback pos%-Obstacles */
+/* ── Fallback pos%-Obstacles (ohne echte Geo-Koordinaten) ── */
 .wcr-obstacle {
     position: absolute;
     transform: translate(-50%, -50%);
@@ -34,7 +59,7 @@
     align-items: center;
     gap: 4px;
     cursor: default;
-    z-index: 900;
+    z-index: 500;
     pointer-events: none;
 }
 .wcr-obstacle-icon {
@@ -75,5 +100,5 @@
     border-radius: 20px;
     white-space: nowrap;
     pointer-events: none;
-    z-index: 950;
+    z-index: 600;
 }
