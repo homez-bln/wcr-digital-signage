@@ -314,7 +314,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
         $atts = shortcode_atts([
             'id'     => 'wcr-obstacles-map',
             'width'  => '100%',
-            'height' => '100%',
+            'height' => '500px',  // feste Fallback-Höhe statt 100%
             'bg'     => '',
         ], $atts, 'wcr_obstacles_map');
 
@@ -346,7 +346,6 @@ if (!function_exists('wcr_sc_obstacles_map')) {
             }
         }
 
-        // Platzhalter-Obstacles wenn DB leer oder Tabelle noch nicht existiert
         if ($is_placeholder) {
             $obstacles = [
                 ['name' => 'Kicker 1',   'type' => 'kicker', 'icon_url' => '', 'pos_x' => 20, 'pos_y' => 35, 'rotation' => 0],
@@ -376,7 +375,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
 .wcr-obstacles-map {
     position: relative;
     width: 100%;
-    height: 100%;
+    min-height: 300px; /* Fallback falls h=100% kollabiert */
     background-size: cover;
     background-position: center center;
     background-color: #1a3a4a;
@@ -391,6 +390,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
     align-items: center;
     gap: 4px;
     cursor: default;
+    z-index: 2;
 }
 .wcr-obstacle-icon {
     width: 52px;
@@ -402,6 +402,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
     align-items: center;
     justify-content: center;
     font-size: 28px;
+    line-height: 1;
     filter: drop-shadow(0 2px 6px rgba(0,0,0,.5));
 }
 .wcr-obstacle-label {
@@ -429,6 +430,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
     border-radius: 20px;
     white-space: nowrap;
     pointer-events: none;
+    z-index: 3;
 }
 </style>
 <?php
@@ -450,7 +452,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
             $type  = strtolower(trim($obs['type'] ?? 'default'));
             $emoji = $type_icons[$type] ?? $type_icons['default'];
 
-            $posStyle   = 'left:' . $px . '%;top:' . $py . '%;';
+            $posStyle  = 'left:' . $px . '%;top:' . $py . '%;';
             if ($rot) $posStyle .= 'transform:translate(-50%,-50%) rotate(' . $rot . 'deg);';
 
             $iconStyle   = $ico ? 'background-image:url(' . $ico . ');' : '';
