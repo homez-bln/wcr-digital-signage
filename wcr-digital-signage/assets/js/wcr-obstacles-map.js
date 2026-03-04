@@ -11,19 +11,6 @@
     const MAP_LON = 13.5770999960116;
     const ZOOM    = 17.9;
 
-    /* ── Fixe Viewport-Größen (wie wcr-windmap.js) ── */
-    const W_LANDSCAPE = 1920;
-    const H_LANDSCAPE = 1080;
-    const W_PORTRAIT  = 1080;
-    const H_PORTRAIT  = 1920;
-
-    var bodyW = document.documentElement.clientWidth  || 1920;
-    var bodyH = document.documentElement.clientHeight || 1080;
-    var IS_PORTRAIT = bodyH > bodyW;
-
-    var W = IS_PORTRAIT ? W_PORTRAIT  : W_LANDSCAPE;
-    var H = IS_PORTRAIT ? H_PORTRAIT  : H_LANDSCAPE;
-
     const STYLES = [
         {
             id:    'voyager-nolabels',
@@ -68,22 +55,27 @@
         default: '🟣'
     };
 
+    /* ── Icon/Button-Größen: 16:9 vs 9:16 ── */
+    var bodyW = document.documentElement.clientWidth  || 1920;
+    var bodyH = document.documentElement.clientHeight || 1080;
+    var IS_PORTRAIT = bodyH > bodyW;
+
     var ICON_SIZE = IS_PORTRAIT ? 60  : 44;
     var FONT_SIZE = IS_PORTRAIT ? '36px' : '28px';
     var LBL_SIZE  = IS_PORTRAIT ? '15px' : '11px';
     var BTN_FONT  = IS_PORTRAIT ? '18px' : '13px';
     var BTN_PAD   = IS_PORTRAIT ? '10px 20px' : '5px 12px';
 
-    /* ── Leaflet Pane z-indexes direkt per JS setzen ── */
+    /* ── Leaflet Pane z-indexes per JS setzen ── */
     function fixPaneZIndexes(map) {
-        var panes = map.getPanes();
-        if (panes.mapPane)        panes.mapPane.style.zIndex        = '1';
-        if (panes.tilePane)       panes.tilePane.style.zIndex       = '2';
-        if (panes.overlayPane)    panes.overlayPane.style.zIndex    = '3';
-        if (panes.shadowPane)     panes.shadowPane.style.zIndex     = '4';
-        if (panes.markerPane)     panes.markerPane.style.zIndex     = '500';
-        if (panes.tooltipPane)    panes.tooltipPane.style.zIndex    = '501';
-        if (panes.popupPane)      panes.popupPane.style.zIndex      = '502';
+        var p = map.getPanes();
+        if (p.mapPane)     p.mapPane.style.zIndex     = '1';
+        if (p.tilePane)    p.tilePane.style.zIndex    = '2';
+        if (p.overlayPane) p.overlayPane.style.zIndex = '3';
+        if (p.shadowPane)  p.shadowPane.style.zIndex  = '4';
+        if (p.markerPane)  p.markerPane.style.zIndex  = '500';
+        if (p.tooltipPane) p.tooltipPane.style.zIndex = '501';
+        if (p.popupPane)   p.popupPane.style.zIndex   = '502';
     }
 
     function initObstaclesMap() {
@@ -94,18 +86,18 @@
         var apiUrl = (window.wcrObstaclesMap && window.wcrObstaclesMap.apiUrl)
                      || el.getAttribute('data-api');
 
-        /* ── Container fixe Pixel-Größe ── */
+        /* ── Container: 100% des Eltern-Elements (Elementor setzt die Größe) ── */
         el.innerHTML = '';
         el.style.cssText = [
             'position:relative',
-            'width:'  + W + 'px',
-            'height:' + H + 'px',
+            'width:100%',
+            'height:100%',
+            'min-height:400px',
             'overflow:hidden',
-            'flex-shrink:0',
-            'z-index:1'          /* Container selbst ganz unten im Stacking-Context */
+            'display:block'
         ].join(';');
 
-        /* ── Leaflet Map init ── */
+        /* ── Leaflet Map ── */
         var map = L.map(el, {
             zoomControl:        false,
             attributionControl: true,
@@ -117,10 +109,10 @@
             preferCanvas:       true
         }).setView([MAP_LAT, MAP_LON], ZOOM);
 
-        /* ── Pane z-indexes sofort korrigieren ── */
+        /* Panes sofort nach unten */
         fixPaneZIndexes(map);
 
-        /* ── Startlayer ── */
+        /* ── Tile-Layer ── */
         var savedIdx = parseInt(localStorage.getItem(DEFAULT_STYLE_KEY) || '0', 10);
         if (isNaN(savedIdx) || savedIdx < 0 || savedIdx >= STYLES.length) savedIdx = 0;
         var currentStyleIdx = savedIdx;
@@ -128,10 +120,12 @@
         var currentLayer = L.tileLayer(STYLES[currentStyleIdx].url, {
             attribution:  STYLES[currentStyleIdx].attr,
             maxZoom:      21,
-            detectRetina: true
+            detectRetina: true,
+            /* Sub-Pixel-Gap verhindern */
+            className:    'wcr-tile-layer'
         }).addTo(map);
 
-        /* ── Style-Switcher UI ── */
+        /* ── Style-Switcher ── */
         var switcher = document.createElement('div');
         switcher.style.cssText = [
             'position:absolute',
@@ -175,9 +169,10 @@
                 if (newIdx === currentStyleIdx) return;
                 map.removeLayer(currentLayer);
                 currentLayer = L.tileLayer(STYLES[newIdx].url, {
-                    attribution:  STYLES[newIdx].attr,
-                    maxZoom:      21,
-                    detectRetina: true
+                    attribution: STYLES[newIdx].attr,
+                    maxZoom:     21,
+                    detectRetina: true,
+                    className:   'wcr-tile-layer'
                 }).addTo(map);
                 currentLayer.bringToBack();
                 currentStyleIdx = newIdx;
@@ -189,13 +184,12 @@
                 btn.style.background  = 'rgba(59,130,246,.80)';
                 btn.style.borderColor = 'rgba(99,179,255,.65)';
             });
-
             switcher.appendChild(btn);
         });
 
         el.appendChild(switcher);
 
-        /* ── Panes nach invalidateSize nochmal fixieren ── */
+        /* Nach Render: Panes nochmal fixieren + Größe korrekt setzen */
         setTimeout(function () {
             map.invalidateSize();
             fixPaneZIndexes(map);
@@ -225,7 +219,6 @@
                         iconHtml += '<span style="font-size:' + LBL_SIZE + ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em">' + label + '</span>';
                     }
                     iconHtml += '</div>';
-
                     var divIcon = L.divIcon({
                         html:       iconHtml,
                         className:  'wcr-leaflet-obstacle',

@@ -1,37 +1,58 @@
-/* ── Obstacles Map ── */
+/* ── Obstacles Map Container ── */
 .wcr-obstacles-map {
     position: relative;
+    width: 100vw;
+    height: 100vh;
     overflow: hidden;
-    background: #1a3a4a;
+    background: #e8e0d8;
+    display: block;
 }
 
-/* ───────────────────────────────────────────────────────
-   Leaflet Layer-Stack z-index Fixe
-   Tile-Pane bleibt unten, Marker drüber
-─────────────────────────────────────────────────────── */
-.wcr-obstacles-map .leaflet-map-pane         { z-index: 1 !important; }
-.wcr-obstacles-map .leaflet-tile-pane        { z-index: 2 !important; }
-.wcr-obstacles-map .leaflet-overlay-pane     { z-index: 3 !important; }
-.wcr-obstacles-map .leaflet-shadow-pane      { z-index: 4 !important; }
+/* ══ Leaflet: Tile-Grid-Linien komplett eliminieren ══ */
+
+/* Tile-Kacheln: keine Borders, kein Anti-Aliasing-Gap */
+.wcr-obstacles-map .leaflet-tile {
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Sub-Pixel-Rendering-Fix: verhindert 1px-Spalten zwischen Kacheln */
+    transform: translate3d(0,0,0);
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+}
+
+/* Tile-Container: kein Gap durch Subpixel */
+.wcr-obstacles-map .leaflet-tile-container {
+    transform: translate3d(0,0,0) !important;
+    will-change: transform;
+}
+
+/* Layer: kein overflow-clip-Problem */
+.wcr-obstacles-map .leaflet-layer {
+    will-change: transform;
+}
+
+/* Leaflet-Container selbst */
+.wcr-obstacles-map .leaflet-container {
+    background: #e8e0d8 !important;
+    outline: none !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ══ z-index Stack ══ */
+.wcr-obstacles-map .leaflet-map-pane         { z-index: 1   !important; }
+.wcr-obstacles-map .leaflet-tile-pane        { z-index: 2   !important; }
+.wcr-obstacles-map .leaflet-overlay-pane     { z-index: 3   !important; }
+.wcr-obstacles-map .leaflet-shadow-pane      { z-index: 4   !important; }
 .wcr-obstacles-map .leaflet-marker-pane      { z-index: 500 !important; }
 .wcr-obstacles-map .leaflet-tooltip-pane     { z-index: 501 !important; }
 .wcr-obstacles-map .leaflet-popup-pane       { z-index: 502 !important; }
 .wcr-obstacles-map .leaflet-control-container{ z-index: 800 !important; }
 
-/* Grid-Linien der Tile-Kacheln komplett ausblenden */
-.wcr-obstacles-map .leaflet-tile {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-.wcr-obstacles-map .leaflet-container {
-    background: #e8e0d8;
-    outline: none !important;
-}
-
-/* ── Attribution klein ── */
+/* ── Attribution ── */
 .wcr-obstacles-map .leaflet-control-attribution {
     font-size: 9px !important;
     background: rgba(0,0,0,.40) !important;
@@ -43,14 +64,14 @@
     color: rgba(255,255,255,.45) !important;
 }
 
-/* ── DivIcon: kein Rahmen, kein Hintergrund ── */
+/* ── DivIcon Obstacles ── */
 .wcr-obstacles-map .wcr-leaflet-obstacle {
     background: none !important;
     border: none !important;
     box-shadow: none !important;
 }
 
-/* ── Fallback pos%-Obstacles (ohne echte Geo-Koordinaten) ── */
+/* ── Fallback pos%-Obstacles ── */
 .wcr-obstacle {
     position: absolute;
     transform: translate(-50%, -50%);
@@ -82,11 +103,6 @@
     text-shadow: 0 1px 4px rgba(0,0,0,.8);
     white-space: nowrap;
     letter-spacing: .03em;
-}
-.wcr-obstacle.is-placeholder .wcr-obstacle-icon {
-    background: rgba(255,255,255,.12);
-    border: 2px dashed rgba(255,255,255,.3);
-    border-radius: 10px;
 }
 .wcr-obstacles-placeholder-hint {
     position: absolute;
