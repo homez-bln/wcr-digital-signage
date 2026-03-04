@@ -18,6 +18,11 @@
  * DB-Tabelle (wird beim ersten Aufruf auto-erstellt):
  *   media_files (id, folder, filename, is_active, created_at)
  *
+ * Obstacle-Map-Settings:
+ *   obstacle_settings (id, folder, filename, updated_at)
+ *   → speichert, welches Bild (Ordner + Dateiname) als
+ *     Hintergrund für die Obstacles-Map verwendet werden soll.
+ *
  * Neuen Ordner hinzufügen:
  *   Im Array $MEDIA_FOLDERS einen weiteren Eintrag ergänzen –
  *   alle anderen Dateien bleiben unverändert.
@@ -77,7 +82,7 @@ $folderPath = $folder['abs_path'];
 $webBase    = $folder['web_base'];
 
 // ═══════════════════════════════════════════════════════════════════
-// DB – Tabelle auto-erstellen (läuft nur einmalig durch)
+// DB – Tabellen auto-erstellen (laufen nur einmalig durch)
 // ═══════════════════════════════════════════════════════════════════
 $db->exec("
     CREATE TABLE IF NOT EXISTS media_files (
@@ -89,6 +94,45 @@ $db->exec("
         UNIQUE KEY uq_file (folder, filename)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 ");
+
+$db->exec("
+    CREATE TABLE IF NOT EXISTS obstacle_settings (
+        id         INT          AUTO_INCREMENT PRIMARY KEY,
+        folder     VARCHAR(50)  NOT NULL,
+        filename   VARCHAR(255) NOT NULL,
+        updated_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+");
+
+// Aktuelle Obstacle-Map-Settings laden (ein globaler Eintrag)
+$obstacleSetting = null;
+try {
+    $stmt = $db->query("SELECT folder, filename FROM obstacle_settings ORDER BY id DESC LIMIT 1");
+    $obstacleSetting = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+} catch (Exception $e) {
+    $obstacleSetting = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// OBSTACLE-MAP-SETTINGS SPEICHERN (einfaches Formular in dieser Seite)
+// ═══════════════════════════════════════════════════════════════════
+$settingsMsg = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['obstacle_settings_save'])) {
+    $selFolder = isset($_POST['obs_folder']) ? trim((string)$_POST['obs_folder']) : '';
+    $selFile   = isset($_POST['obs_filename']) ? trim((string)$_POST['obs_filename']) : '';
+
+    if ($selFolder !== '' && $selFile !== '' && isset($MEDIA_FOLDERS[$selFolder])) {
+        $stmt = $db->prepare("INSERT INTO obstacle_settings (folder, filename) VALUES (?, ?)");
+        $stmt->execute([$selFolder, $selFile]);
+        $settingsMsg = 'Obstacle-Map-Hintergrund gespeichert: ' . $selFolder . '/' . $selFile;
+    } else {
+        $settingsMsg = 'Fehler: Bitte erst ein Bild auswählen.';
+    }
+
+    header('Location: media.php?folder=' . urlencode($activeKey) . '&settings_msg=' . urlencode($settingsMsg));
+    exit;
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // UPLOAD HANDLING  (PRG-Pattern – verhindert Doppel-Submit)
@@ -162,14 +206,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_FILES['media_upload']['nam
     if (!empty($errors))   $parts[] = implode(' | ', $errors);
 
     // PRG-Redirect (verhindert Doppel-Upload bei F5)
-    header("Location: media.php?folder=$activeKey&msg=" . urlencode(implode(' — ', $parts)));
+    header('Location: media.php?folder=' . urlencode($activeKey) . '&msg=' . urlencode(implode(' — ', $parts)));
     exit;
 }
 
-// Status-Meldung nach Redirect anzeigen
+// Status-Meldungen nach Redirect anzeigen
 if (!empty($_GET['msg'])) {
     $uploadMsg   = htmlspecialchars(urldecode($_GET['msg']));
     $uploadIsErr = (strpos($uploadMsg, '✓') !== 0);
+}
+if (!empty($_GET['settings_msg'])) {
+    $settingsMsg = htmlspecialchars(urldecode($_GET['settings_msg']));
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -213,6 +260,17 @@ if (!empty($images)) {
 $activeCount = array_sum($activeMap);
 $totalCount  = count($images);
 $PAGE_TITLE  = 'Media';
+
+// URL des aktuell gesetzten Obstacle-Map-Hintergrundbildes berechnen
+$currentObstacleThumb = '';
+$currentObstacleLabel = 'Kein Hintergrund gewählt';
+if ($obstacleSetting && isset($MEDIA_FOLDERS[$obstacleSetting['folder']])) {
+    $obsFolderKey = $obstacleSetting['folder'];
+    $obsFile      = $obstacleSetting['filename'];
+    $obsBase      = $MEDIA_FOLDERS[$obsFolderKey]['web_base'];
+    $currentObstacleThumb = $obsBase . $obsFile;
+    $currentObstacleLabel = $obsFolderKey . '/' . $obsFile;
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -222,7 +280,83 @@ $PAGE_TITLE  = 'Media';
     <title><?= htmlspecialchars($PAGE_TITLE) ?> – Backend</title>
     <link rel="stylesheet" href="../inc/style.css">
     <style>
-    
+    .obstacle-settings-box {
+        margin: 18px 0 22px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: #f5f5f7;
+        border: 1px solid #e0e0e5;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .obstacle-settings-box h4 {
+        margin: 0 0 6px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1d1d1f;
+    }
+    .obstacle-settings-box p {
+        margin: 0;
+        font-size: 12px;
+        color: #6e6e73;
+    }
+    .obstacle-settings-thumb {
+        width: 96px;
+        height: 64px;
+        border-radius: 10px;
+        background: #d2d2d7;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        color: #6e6e73;
+    }
+    .obstacle-settings-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .obstacle-settings-form {
+        display: flex;
+        flex: 1;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        align-items: center;
+    }
+    .obstacle-settings-form label {
+        font-size: 12px;
+        color: #6e6e73;
+    }
+    .obstacle-settings-form select {
+        min-width: 180px;
+        padding: 5px 9px;
+        border-radius: 8px;
+        border: 1px solid #d2d2d7;
+        font-size: 12px;
+        background: #fff;
+    }
+    .obstacle-settings-form button {
+        padding: 6px 14px;
+        border-radius: 999px;
+        border: none;
+        background: #0071e3;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .obstacle-settings-form button:disabled {
+        opacity: .5;
+        cursor: default;
+    }
+    .obstacle-settings-msg {
+        margin-top: 6px;
+        font-size: 11px;
+        color: #1d1d1f;
+    }
     </style>
 </head>
 <body>
@@ -285,6 +419,41 @@ $PAGE_TITLE  = 'Media';
                     <div class="stat-num" id="js-active-count"><?= $activeCount ?></div>
                     <div class="stat-lbl">Aktiv</div>
                     <div class="stat-total">von <?= $totalCount ?></div>
+                </div>
+            </section>
+
+            <!-- ── OBSTACLE-MAP-SETTINGS ── -->
+            <section class="obstacle-settings-box">
+                <div class="obstacle-settings-thumb">
+                    <?php if ($currentObstacleThumb): ?>
+                        <img src="<?= htmlspecialchars($currentObstacleThumb) ?>" alt="Obstacle-Map Hintergrund">
+                    <?php else: ?>
+                        <span>Kein Bild</span>
+                    <?php endif; ?>
+                </div>
+                <div class="obstacle-settings-form">
+                    <div>
+                        <h4>Obstacle‑Map Hintergrund</h4>
+                        <p>Wähle ein Bild aus einem Upload-Ordner, das als Vogelperspektive‑Karte für die Obstacles‑Map dient.</p>
+                        <p style="margin-top:4px;font-size:11px;">Aktuell: <strong><?= htmlspecialchars($currentObstacleLabel) ?></strong></p>
+                    </div>
+                    <form method="POST" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <input type="hidden" name="obstacle_settings_save" value="1">
+                        <input type="hidden" name="obs_folder" value="<?= htmlspecialchars($activeKey) ?>">
+                        <label for="obs_filename">Bild aus „<?= htmlspecialchars($folder['label']) ?>“:</label>
+                        <select name="obs_filename" id="obs_filename">
+                            <option value="">– Bild auswählen –</option>
+                            <?php foreach ($images as $filename): ?>
+                                <option value="<?= htmlspecialchars($filename) ?>"
+                                    <?php if ($obstacleSetting && $obstacleSetting['folder'] === $activeKey && $obstacleSetting['filename'] === $filename): ?>selected<?php endif; ?>
+                                ><?= htmlspecialchars($filename) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" <?= empty($images) ? 'disabled' : '' ?>>Speichern</button>
+                    </form>
+                    <?php if ($settingsMsg): ?>
+                        <div class="obstacle-settings-msg"><?= $settingsMsg ?></div>
+                    <?php endif; ?>
                 </div>
             </section>
 
