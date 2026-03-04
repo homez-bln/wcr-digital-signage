@@ -1,72 +1,65 @@
-/* ── Obstacles Map Container ── */
-.wcr-obstacles-map {
+/* ═══════════════════════════════════════════════════════
+   WCR Obstacles Map CSS
+   Identische Struktur wie #wcr-windmap-wrap
+═══════════════════════════════════════════════════════ */
+
+/* ── Wrap: fixer 1920×1080 Container ── */
+#wcr-obstacles-map-wrap {
     position: relative;
-    width: 100%;
-    height: 100%;
+    width: 1920px;
+    height: 1080px;
     overflow: hidden;
     background: #e8e0d8;
-    display: block;
+    font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
-/* ═══════════════════════════════════════════════════════
-   TILE-GRID FIX
-   Leaflet setzt intern margin:-1px auf .leaflet-tile.
-   Das erzeugt 1px graue Linien zwischen Kacheln.
-   Fix: margin:-1px + width/height +2px überlappen die Kacheln
-   minimal – Linie verschwindet.
-═══════════════════════════════════════════════════════ */
-.wcr-obstacles-map .leaflet-tile {
-    /* Kacheln 1px in alle Richtungen überlappen → keine Spalt-Linie */
-    margin:  -1px !important;
-    width:   calc(256px + 2px) !important;
-    height:  calc(256px + 2px) !important;
-    /* keine sonstigen Borders */
-    border:     0 none !important;
-    outline:    0 none !important;
-    box-shadow: none   !important;
-    padding:    0      !important;
+/* ── Map: exakt wie #wcr-windmap-wrap #map ── */
+#wcr-obstacles-map-wrap #wcr-obstacles-map {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    z-index: 0;
 }
 
-/* GPU-Layer erzwingen – verhindert Subpixel-Jitter */
-.wcr-obstacles-map .leaflet-tile-container,
-.wcr-obstacles-map .leaflet-layer {
-    transform:  translateZ(0);
+/* ══ Leaflet: exakt wie Windmap – NUR border/margin/will-change ══ */
+#wcr-obstacles-map-wrap .leaflet-container {
+    background: #e8e0d8 !important;
+}
+#wcr-obstacles-map-wrap .leaflet-tile {
+    border:  0    !important;
+    outline: none !important;
+    margin:  0    !important;
+    padding: 0    !important;
+}
+#wcr-obstacles-map-wrap .leaflet-tile-container {
     will-change: transform;
-    backface-visibility: hidden;
+}
+#wcr-obstacles-map-wrap .leaflet-overlay-pane {
+    display: none !important;
+}
+#wcr-obstacles-map-wrap .leaflet-control-attribution {
+    font-size: 9px !important;
+    opacity: 0.4  !important;
+}
+#wcr-obstacles-map-wrap .leaflet-control-zoom {
+    display: none;
 }
 
-/* Leaflet-Container */
-.wcr-obstacles-map .leaflet-container {
-    background:  #e8e0d8 !important;
-    outline:     none    !important;
-    width:       100%    !important;
-    height:      100%    !important;
-}
-
-/* ══ z-index Stack ══ */
-.wcr-obstacles-map .leaflet-map-pane          { z-index: 1   !important; }
-.wcr-obstacles-map .leaflet-tile-pane         { z-index: 2   !important; }
-.wcr-obstacles-map .leaflet-overlay-pane      { z-index: 3   !important; }
-.wcr-obstacles-map .leaflet-shadow-pane       { z-index: 4   !important; }
-.wcr-obstacles-map .leaflet-marker-pane       { z-index: 500 !important; }
-.wcr-obstacles-map .leaflet-tooltip-pane      { z-index: 501 !important; }
-.wcr-obstacles-map .leaflet-popup-pane        { z-index: 502 !important; }
-.wcr-obstacles-map .leaflet-control-container { z-index: 800 !important; }
-
-/* ── Attribution ── */
-.wcr-obstacles-map .leaflet-control-attribution {
-    font-size:   9px !important;
-    background:  rgba(0,0,0,.40)       !important;
-    color:       rgba(255,255,255,.45) !important;
-    border-radius: 4px 0 0 0;
-    backdrop-filter: blur(4px);
-}
-.wcr-obstacles-map .leaflet-control-attribution a {
-    color: rgba(255,255,255,.45) !important;
+/* ── Style-Switcher (absolute über der Map) ── */
+#wcr-obstacles-map-wrap .wcr-style-switcher {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: all;
 }
 
 /* ── DivIcon Obstacles ── */
-.wcr-obstacles-map .wcr-leaflet-obstacle {
+#wcr-obstacles-map-wrap .wcr-leaflet-obstacle {
     background: none !important;
     border:     none !important;
     box-shadow: none !important;
@@ -74,36 +67,13 @@
 
 /* ── Fallback pos%-Obstacles ── */
 .wcr-obstacle {
-    position:        absolute;
-    transform:       translate(-50%, -50%);
-    display:         flex;
-    flex-direction:  column;
-    align-items:     center;
-    gap:             4px;
-    cursor:          default;
-    z-index:         500;
-    pointer-events:  none;
-}
-.wcr-obstacle-icon {
-    width:                52px;
-    height:               52px;
-    background-size:      contain;
-    background-repeat:    no-repeat;
-    background-position:  center;
-    display:              flex;
-    align-items:          center;
-    justify-content:      center;
-    font-size:            28px;
-    line-height:          1;
-    filter:               drop-shadow(0 2px 6px rgba(0,0,0,.5));
-}
-.wcr-obstacle-label {
-    font-size:       11px;
-    font-weight:     700;
-    color:           #fff;
-    text-shadow:     0 1px 4px rgba(0,0,0,.8);
-    white-space:     nowrap;
-    letter-spacing:  .03em;
+    position:       absolute;
+    display:        flex;
+    flex-direction: column;
+    align-items:    center;
+    gap:            4px;
+    z-index:        500;
+    pointer-events: none;
 }
 .wcr-obstacles-placeholder-hint {
     position:       absolute;

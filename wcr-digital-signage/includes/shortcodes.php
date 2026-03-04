@@ -308,17 +308,14 @@ if (!function_exists('wcr_db_item_shortcode')) {
 
 // ════════════════════════════════════════════════════════
 // OBSTACLES MAP  [wcr_obstacles_map]
+// Identische Struktur wie wcr_sc_windmap:
+//   #wcr-obstacles-map-wrap  position:relative; 1920×1080
+//   #wcr-obstacles-map       position:absolute; inset:0; 1920×1080
 // ════════════════════════════════════════════════════════
 if (!function_exists('wcr_sc_obstacles_map')) {
     function wcr_sc_obstacles_map($atts) {
-        $atts = shortcode_atts([
-            'id'     => 'wcr-obstacles-map',
-            'width'  => '100%',
-            'height' => '500px',
-            'bg'     => '',
-        ], $atts, 'wcr_obstacles_map');
 
-        // ── Leaflet + Obstacles CSS + JS laden ──
+        // ── Assets laden ──
         wcr_ds_load_leaflet();
         wp_enqueue_style(
             'wcr-obstacles-map-css',
@@ -333,19 +330,18 @@ if (!function_exists('wcr_sc_obstacles_map')) {
             defined('WCR_DS_VERSION') ? WCR_DS_VERSION : '1.0.0',
             true
         );
-
         $api_url = rest_url('wakecamp/v1/obstacles');
         wp_localize_script('wcr-obstacles-map', 'wcrObstaclesMap', [
             'apiUrl' => esc_url_raw($api_url),
         ]);
 
-        // ── Obstacles aus DB laden – Fallback auf Platzhalter wenn leer ──
+        // ── Obstacles aus DB ──
         $obstacles      = [];
         $is_placeholder = true;
         $db             = get_ionos_db_connection();
         if ($db) {
             $rows = $db->get_results(
-                "SELECT name, type, icon_url, pos_x, pos_y, rotation FROM obstacles WHERE active = 1 ORDER BY id ASC",
+                "SELECT name, type, icon_url, pos_x, pos_y, lat, lon, rotation FROM obstacles WHERE active = 1 ORDER BY id ASC",
                 ARRAY_A
             );
             if (!empty($rows)) {
@@ -356,52 +352,56 @@ if (!function_exists('wcr_sc_obstacles_map')) {
 
         if ($is_placeholder) {
             $obstacles = [
-                ['name' => 'Kicker 1',   'type' => 'kicker', 'icon_url' => '', 'pos_x' => 20, 'pos_y' => 35, 'rotation' => 0],
-                ['name' => 'Kicker 2',   'type' => 'kicker', 'icon_url' => '', 'pos_x' => 55, 'pos_y' => 25, 'rotation' => 15],
-                ['name' => 'Rail Links', 'type' => 'rail',   'icon_url' => '', 'pos_x' => 35, 'pos_y' => 60, 'rotation' => 45],
-                ['name' => 'Rail Mitte', 'type' => 'rail',   'icon_url' => '', 'pos_x' => 65, 'pos_y' => 55, 'rotation' => 0],
-                ['name' => 'Box',        'type' => 'box',    'icon_url' => '', 'pos_x' => 80, 'pos_y' => 40, 'rotation' => 0],
+                ['name' => 'Kicker 1',   'type' => 'kicker', 'icon_url' => '', 'pos_x' => 20, 'pos_y' => 35, 'lat' => 0, 'lon' => 0, 'rotation' => 0],
+                ['name' => 'Kicker 2',   'type' => 'kicker', 'icon_url' => '', 'pos_x' => 55, 'pos_y' => 25, 'lat' => 0, 'lon' => 0, 'rotation' => 15],
+                ['name' => 'Rail Links', 'type' => 'rail',   'icon_url' => '', 'pos_x' => 35, 'pos_y' => 60, 'lat' => 0, 'lon' => 0, 'rotation' => 45],
+                ['name' => 'Rail Mitte', 'type' => 'rail',   'icon_url' => '', 'pos_x' => 65, 'pos_y' => 55, 'lat' => 0, 'lon' => 0, 'rotation' => 0],
+                ['name' => 'Box',        'type' => 'box',    'icon_url' => '', 'pos_x' => 80, 'pos_y' => 40, 'lat' => 0, 'lon' => 0, 'rotation' => 0],
             ];
         }
 
         $type_icons = [
-            'kicker'  => '🚀',
-            'rail'    => '🟧',
-            'box'     => '🟦',
-            'fun'     => '⭐',
-            'slider'  => '🟩',
-            'default' => '🟣',
+            'kicker'  => '🚀', 'rail' => '🟧', 'box' => '🟦',
+            'fun'     => '⭐',  'slider' => '🟩', 'default' => '🟣',
         ];
 
         ob_start();
 
-        $style = '';
-        if (!empty($atts['width']))  $style .= 'width:'  . esc_attr($atts['width'])  . ';';
-        if (!empty($atts['height'])) $style .= 'height:' . esc_attr($atts['height']) . ';';
+        // ── Wrap: identisch zu #wcr-windmap-wrap ──
+        echo '<div id="wcr-obstacles-map-wrap">';
 
-        echo '<div id="' . esc_attr($atts['id']) . '" class="wcr-obstacles-map" style="' . esc_attr($style) . '" data-api="' . esc_url($api_url) . '">';
+        // ── Map-Div: identisch zu #wcr-windmap-wrap #map ──
+        echo '<div id="wcr-obstacles-map" data-api="' . esc_url($api_url) . '"></div>';
 
-        // PHP-Platzhalter nur wenn keine echten Geo-Koordinaten vorhanden
+        // ── Obstacles als absolute divs im Wrap ──
         foreach ($obstacles as $obs) {
-            $px    = (float)($obs['pos_x']    ?? 50);
-            $py    = (float)($obs['pos_y']    ?? 50);
-            $rot   = (float)($obs['rotation'] ?? 0);
-            $ico   = !empty($obs['icon_url']) ? esc_url($obs['icon_url']) : '';
-            $lbl   = esc_html($obs['name'] ?? '');
-            $type  = strtolower(trim($obs['type'] ?? 'default'));
+            $lat  = (float)($obs['lat']      ?? 0);
+            $lon  = (float)($obs['lon']      ?? 0);
+            // pos_x/pos_y sind Prozent → in Pixel umrechnen (1920×1080)
+            $px   = (float)($obs['pos_x']    ?? 50) / 100 * 1920;
+            $py   = (float)($obs['pos_y']    ?? 50) / 100 * 1080;
+            $rot  = (float)($obs['rotation'] ?? 0);
+            $ico  = !empty($obs['icon_url']) ? esc_url($obs['icon_url']) : '';
+            $lbl  = esc_html($obs['name'] ?? '');
+            $type = strtolower(trim($obs['type'] ?? 'default'));
             $emoji = $type_icons[$type] ?? $type_icons['default'];
 
-            $posStyle  = 'left:' . $px . '%;top:' . $py . '%;';
-            if ($rot) $posStyle .= 'transform:translate(-50%,-50%) rotate(' . $rot . 'deg);';
+            // Nur pos%-Obstacles als PHP-Fallback rendern (lat/lon macht JS via Leaflet)
+            if ($lat != 0 || $lon != 0) continue;
 
-            $iconStyle   = $ico ? 'background-image:url(' . $ico . ');' : '';
+            $posStyle  = 'left:' . $px . 'px;top:' . $py . 'px;';
+            $transform = 'translate(-50%,-50%)';
+            if ($rot) $transform .= ' rotate(' . $rot . 'deg)';
+            $posStyle .= 'transform:' . $transform . ';';
+
+            $iconStyle   = $ico ? 'background-image:url(' . $ico . ');width:44px;height:44px;background-size:contain;background-repeat:no-repeat;' : '';
             $iconContent = $ico ? '' : $emoji;
 
-            echo '<div class="wcr-obstacle' . ($is_placeholder ? ' is-placeholder' : '') . '"'
-               . ' style="' . $posStyle . '"'
-               . ' data-type="' . esc_attr($type) . '">';
-            echo '<div class="wcr-obstacle-icon" style="' . $iconStyle . '">' . $iconContent . '</div>';
-            echo '<span class="wcr-obstacle-label">' . $lbl . '</span>';
+            echo '<div class="wcr-obstacle' . ($is_placeholder ? ' is-placeholder' : '') . '"
+                 style="' . $posStyle . '"
+                 data-type="' . esc_attr($type) . '">';
+            echo '<div class="wcr-obstacle-icon" style="' . $iconStyle . 'font-size:28px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))">' . $iconContent . '</div>';
+            echo '<span style="font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap">' . $lbl . '</span>';
             echo '</div>';
         }
 
@@ -409,7 +409,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
             echo '<div class="wcr-obstacles-placeholder-hint">Platzhalter – bitte Obstacles im Backend pflegen</div>';
         }
 
-        echo '</div>';
+        echo '</div>'; // #wcr-obstacles-map-wrap
 
         return ob_get_clean();
     }
