@@ -14,6 +14,7 @@ $_menuItems = [
     ['Camping',   'ctrl/list.php?t=camping', null],
     ['Extra',     'ctrl/list.php?t=extra',   null],
     ['Media',     'ctrl/media.php',          'view_media'],
+    ['Obstacles', 'ctrl/obstacles.php',      'view_media'],
     ['DS-Seiten',     'ctrl/ds-seiten.php',      'view_ds'],
     ['DS Controller',    'ctrl/ds-settings.php',   'view_ds'],
 ];
