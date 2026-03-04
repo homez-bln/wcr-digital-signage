@@ -22,6 +22,7 @@ $gruppen = [
             ['title' => 'Kaffee',           'url' => 'https://wcr-webpage.de/kaffee',         'icon' => '☕',      'badge' => 'Aktiv', 'badge_color' => '#00c853'],
             ['title' => 'Merchandise',      'url' => 'https://wcr-webpage.de/merchandise',   'icon' => '👕', 'badge' => 'Aktiv', 'badge_color' => '#00c853'],
             ['title' => 'Stand Up Paddle',  'url' => 'https://wcr-webpage.de/sup',            'icon' => '🏄', 'badge' => 'Aktiv', 'badge_color' => '#00c853'],
+            ['title' => 'Park',             'url' => 'https://wcr-webpage.de/park',           'icon' => '🌊', 'badge' => 'Aktiv', 'badge_color' => '#00c853'],
             ['title' => 'Obstacles',        'url' => 'https://wake-and-camp.de/obst/',        'icon' => '🤸', 'badge' => '500',   'badge_color' => '#ff3b30'],
             ['title' => 'Kino',             'url' => 'https://wcr-webpage.de/kino',           'icon' => '🎬', 'badge' => '404',   'badge_color' => '#ff9500'],
         ],
@@ -33,6 +34,7 @@ $gruppen = [
             ['title' => 'Öffnungszeiten Story', 'url' => 'https://wcr-webpage.de/oeffnungszeiten-story', 'icon' => '🕐', 'badge' => 'Aktiv', 'badge_color' => '#00c853'],
             ['title' => 'Instagram Grid',      'url' => 'https://wcr-webpage.de/insta',                  'icon' => '📸', 'badge' => 'Aktiv', 'badge_color' => '#00c853'],
             ['title' => 'Instagram Reels',     'url' => 'https://wcr-webpage.de/insta-reel',             'icon' => '🎥', 'badge' => 'Aktiv', 'badge_color' => '#00c853'],
+            ['title' => 'Park',                'url' => 'https://wcr-webpage.de/park',                   'icon' => '🌊', 'badge' => 'Aktiv', 'badge_color' => '#00c853'],
         ],
         'portrait' => true,
     ],
@@ -116,7 +118,7 @@ unset($g, $s);
 
 <div class="header-controls">
   <h1>🖥 <?= htmlspecialchars($PAGE_TITLE) ?></h1>
-  <button class="btn-upload" onclick="dsReloadAll()">↺ Alle neu laden</button>
+  <button class="btn-upload" onclick="dsReloadAll()">&#x21BA; Alle neu laden</button>
 </div>
 
 <?php foreach ($gruppen as $g):
@@ -145,7 +147,7 @@ unset($g, $s);
             <span class="ds-dot" style="background:<?= htmlspecialchars($s['badge_color']) ?>"></span>
             <?= htmlspecialchars($s['badge']) ?>
           </span>
-          <button class="ds-btn" onclick="dsReload(<?= $i ?>)">↺</button>
+          <button class="ds-btn" onclick="dsReload(<?= $i ?>)">&#x21BA;</button>
           <a class="ds-btn primary" href="<?= htmlspecialchars($s['url']) ?>" target="_blank">↗ Öffnen</a>
         </div>
       </div>
@@ -201,7 +203,7 @@ function dsLoaded(idx) {
     spin.classList.add('hidden');
     if (time && dsStartTimes[idx]) {
         var ms = Date.now() - dsStartTimes[idx];
-        time.textContent = '✓ ' + (ms / 1000).toFixed(1) + 's';
+        time.textContent = '\u2713 ' + (ms / 1000).toFixed(1) + 's';
         time.style.color = ms < 2000 ? '#16a34a' : ms < 5000 ? '#d97706' : '#dc2626';
     }
     var wrap = document.getElementById('ds-wrap-' + idx);
