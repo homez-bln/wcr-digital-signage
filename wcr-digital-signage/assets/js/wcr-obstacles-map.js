@@ -11,9 +11,22 @@
     const MAP_LON = 13.5770999960116;
     const ZOOM    = 17.9;
 
+    /* ── Fixe Viewport-Größen (wie wcr-windmap.js) ── */
+    const W_LANDSCAPE = 1920;
+    const H_LANDSCAPE = 1080;
+    const W_PORTRAIT  = 1080;
+    const H_PORTRAIT  = 1920;
+
+    /* Ermitteln ob 16:9 oder 9:16 anhand des body/html-Viewports */
+    var bodyW = document.documentElement.clientWidth  || 1920;
+    var bodyH = document.documentElement.clientHeight || 1080;
+    var IS_PORTRAIT = bodyH > bodyW;
+
+    var W = IS_PORTRAIT ? W_PORTRAIT  : W_LANDSCAPE;
+    var H = IS_PORTRAIT ? H_PORTRAIT  : H_LANDSCAPE;
+
     /* ───────────────────────────────────────────────────────
-       Map-Stile
-       Index 0 = Standard (OSM Voyager nolabels)
+       Map-Stile — Index 0 = Standard (OSM Voyager nolabels)
     ─────────────────────────────────────────────────────── */
     const STYLES = [
         {
@@ -45,8 +58,7 @@
             id:    'satellite-labels',
             label: '🛰️ Sat+Labels',
             url:   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            attr:  'Tiles © Esri',
-            overlay: 'https://stamen-tiles-{s}.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}.png'
+            attr:  'Tiles © Esri'
         },
     ];
 
@@ -61,6 +73,13 @@
         default: '🟣'
     };
 
+    /* Icon- und Button-Größen je Format */
+    var ICON_SIZE  = IS_PORTRAIT ? 60  : 44;
+    var FONT_SIZE  = IS_PORTRAIT ? '36px' : '28px';
+    var LBL_SIZE   = IS_PORTRAIT ? '15px' : '11px';
+    var BTN_FONT   = IS_PORTRAIT ? '18px' : '13px';
+    var BTN_PAD    = IS_PORTRAIT ? '10px 20px' : '5px 12px';
+
     function initObstaclesMap() {
         var el = document.getElementById('wcr-obstacles-map');
         if (!el) return;
@@ -69,18 +88,14 @@
         var apiUrl = (window.wcrObstaclesMap && window.wcrObstaclesMap.apiUrl)
                      || el.getAttribute('data-api');
 
-        /* ── Viewport: 16:9 oder 9:16 ermitteln ── */
-        var vw = window.innerWidth  || document.documentElement.clientWidth  || 1920;
-        var vh = window.innerHeight || document.documentElement.clientHeight || 1080;
-        var isPortrait = vh > vw;
-
-        /* Karte füllt den ganzen Container ── */
+        /* ── Container auf fixe Pixel-Größe setzen ── */
         el.innerHTML = '';
         el.style.cssText = [
             'position:relative',
-            'width:100%',
-            'height:100%',
-            'overflow:hidden'
+            'width:'    + W + 'px',
+            'height:'   + H + 'px',
+            'overflow:hidden',
+            'flex-shrink:0'
         ].join(';');
 
         /* ── Leaflet Map ── */
@@ -101,8 +116,8 @@
         var currentStyleIdx = savedIdx;
 
         var currentLayer = L.tileLayer(STYLES[currentStyleIdx].url, {
-            attribution: STYLES[currentStyleIdx].attr,
-            maxZoom: 21,
+            attribution:  STYLES[currentStyleIdx].attr,
+            maxZoom:      21,
             detectRetina: true
         }).addTo(map);
 
@@ -110,18 +125,14 @@
         var switcher = document.createElement('div');
         switcher.style.cssText = [
             'position:absolute',
-            'top:12px',
-            'right:12px',
+            'top:20px',
+            'right:20px',
             'z-index:1000',
             'display:flex',
             'flex-direction:column',
-            'gap:6px',
+            'gap:8px',
             'pointer-events:all'
         ].join(';');
-
-        /* Schriftgröße etwas größer im Portrait (9:16) */
-        var btnFontSize = isPortrait ? '15px' : '13px';
-        var btnPadding  = isPortrait ? '8px 16px' : '5px 12px';
 
         STYLES.forEach(function (s, idx) {
             var btn = document.createElement('button');
@@ -131,10 +142,10 @@
                 'background:rgba(15,20,30,.82)',
                 'border:1px solid rgba(255,255,255,.18)',
                 'color:#e8eaf0',
-                'font-size:' + btnFontSize,
+                'font-size:'    + BTN_FONT,
                 'font-weight:600',
-                'padding:' + btnPadding,
-                'border-radius:8px',
+                'padding:'      + BTN_PAD,
+                'border-radius:10px',
                 'cursor:pointer',
                 'text-align:left',
                 'transition:background .15s,border-color .15s',
@@ -152,17 +163,15 @@
             btn.addEventListener('click', function () {
                 var newIdx = parseInt(btn.dataset.idx, 10);
                 if (newIdx === currentStyleIdx) return;
-
                 map.removeLayer(currentLayer);
                 currentLayer = L.tileLayer(STYLES[newIdx].url, {
-                    attribution: STYLES[newIdx].attr,
-                    maxZoom: 21,
+                    attribution:  STYLES[newIdx].attr,
+                    maxZoom:      21,
                     detectRetina: true
                 }).addTo(map);
                 currentLayer.bringToBack();
                 currentStyleIdx = newIdx;
                 localStorage.setItem(DEFAULT_STYLE_KEY, newIdx);
-
                 switcher.querySelectorAll('button').forEach(function (b) {
                     b.style.background  = 'rgba(15,20,30,.82)';
                     b.style.borderColor = 'rgba(255,255,255,.18)';
@@ -176,10 +185,10 @@
 
         el.appendChild(switcher);
 
-        /* ── Karte nach Render invalidieren (wichtig für 100%-Höhe) ── */
-        setTimeout(function () { map.invalidateSize(); }, 100);
+        /* ── Leaflet Größe nach Render korrekt setzen ── */
+        setTimeout(function () { map.invalidateSize(); }, 150);
 
-        /* ── Obstacles laden ── */
+        /* ── Obstacles rendern ── */
         function renderObstacles(list) {
             list.forEach(function (o) {
                 var lat = parseFloat(o.lat   || 0);
@@ -189,29 +198,25 @@
                 var rot = parseFloat(o.rotation || 0);
                 var type  = (o.type || 'default').toLowerCase();
                 var emoji = TYPE_ICONS[type] || TYPE_ICONS.default;
-                var label = o.name || '';
+                var label = o.name     || '';
                 var ico   = o.icon_url || '';
 
-                var iconSize = isPortrait ? 52 : 44;
-                var fontSize = isPortrait ? '32px' : '28px';
-                var lblSize  = isPortrait ? '13px' : '11px';
-
                 if (lat !== 0 && lon !== 0) {
-                    var iconHtml = '<div style="transform:rotate(' + rot + 'deg);display:flex;flex-direction:column;align-items:center;gap:3px;">';
+                    var iconHtml = '<div style="transform:rotate(' + rot + 'deg);display:flex;flex-direction:column;align-items:center;gap:4px;">';
                     if (ico) {
-                        iconHtml += '<img src="' + ico + '" style="width:' + iconSize + 'px;height:' + iconSize + 'px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))"/>';
+                        iconHtml += '<img src="' + ico + '" style="width:' + ICON_SIZE + 'px;height:' + ICON_SIZE + 'px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))"/>';
                     } else {
-                        iconHtml += '<div style="font-size:' + fontSize + ';line-height:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.8))">' + emoji + '</div>';
+                        iconHtml += '<div style="font-size:' + FONT_SIZE + ';line-height:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.8))">' + emoji + '</div>';
                     }
                     if (label) {
-                        iconHtml += '<span style="font-size:' + lblSize + ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em">' + label + '</span>';
+                        iconHtml += '<span style="font-size:' + LBL_SIZE + ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em">' + label + '</span>';
                     }
                     iconHtml += '</div>';
 
                     var divIcon = L.divIcon({
                         html:       iconHtml,
                         className:  'wcr-leaflet-obstacle',
-                        iconAnchor: [iconSize / 2, iconSize / 2]
+                        iconAnchor: [ICON_SIZE / 2, ICON_SIZE / 2]
                     });
                     L.marker([lat, lon], { icon: divIcon }).addTo(map);
 
@@ -231,12 +236,12 @@
                         'pointer-events:none'
                     ].join(';');
                     var iconDiv = document.createElement('div');
-                    iconDiv.style.cssText = 'font-size:' + fontSize + ';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
+                    iconDiv.style.cssText = 'font-size:' + FONT_SIZE + ';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
                     if (ico) {
                         iconDiv.style.backgroundImage = 'url(' + ico + ')';
-                        iconDiv.style.width  = iconSize + 'px';
-                        iconDiv.style.height = iconSize + 'px';
-                        iconDiv.style.backgroundSize = 'contain';
+                        iconDiv.style.width           = ICON_SIZE + 'px';
+                        iconDiv.style.height          = ICON_SIZE + 'px';
+                        iconDiv.style.backgroundSize  = 'contain';
                     } else {
                         iconDiv.textContent = emoji;
                     }
@@ -244,7 +249,7 @@
                     if (label) {
                         var lblEl = document.createElement('span');
                         lblEl.textContent = label;
-                        lblEl.style.cssText = 'font-size:' + lblSize + ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap';
+                        lblEl.style.cssText = 'font-size:' + LBL_SIZE + ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap';
                         d.appendChild(lblEl);
                     }
                     el.appendChild(d);
