@@ -17,7 +17,6 @@
     const W_PORTRAIT  = 1080;
     const H_PORTRAIT  = 1920;
 
-    /* Ermitteln ob 16:9 oder 9:16 anhand des body/html-Viewports */
     var bodyW = document.documentElement.clientWidth  || 1920;
     var bodyH = document.documentElement.clientHeight || 1080;
     var IS_PORTRAIT = bodyH > bodyW;
@@ -25,12 +24,8 @@
     var W = IS_PORTRAIT ? W_PORTRAIT  : W_LANDSCAPE;
     var H = IS_PORTRAIT ? H_PORTRAIT  : H_LANDSCAPE;
 
-    /* ───────────────────────────────────────────────────────
-       Map-Stile — Index 0 = Standard (OSM Voyager nolabels)
-    ─────────────────────────────────────────────────────── */
     const STYLES = [
         {
-            /* ★ Standard: OSM-Daten, KEIN Text / Straßennamen ★ */
             id:    'voyager-nolabels',
             label: '🗺️ OSM (clean)',
             url:   'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
@@ -73,12 +68,23 @@
         default: '🟣'
     };
 
-    /* Icon- und Button-Größen je Format */
-    var ICON_SIZE  = IS_PORTRAIT ? 60  : 44;
-    var FONT_SIZE  = IS_PORTRAIT ? '36px' : '28px';
-    var LBL_SIZE   = IS_PORTRAIT ? '15px' : '11px';
-    var BTN_FONT   = IS_PORTRAIT ? '18px' : '13px';
-    var BTN_PAD    = IS_PORTRAIT ? '10px 20px' : '5px 12px';
+    var ICON_SIZE = IS_PORTRAIT ? 60  : 44;
+    var FONT_SIZE = IS_PORTRAIT ? '36px' : '28px';
+    var LBL_SIZE  = IS_PORTRAIT ? '15px' : '11px';
+    var BTN_FONT  = IS_PORTRAIT ? '18px' : '13px';
+    var BTN_PAD   = IS_PORTRAIT ? '10px 20px' : '5px 12px';
+
+    /* ── Leaflet Pane z-indexes direkt per JS setzen ── */
+    function fixPaneZIndexes(map) {
+        var panes = map.getPanes();
+        if (panes.mapPane)        panes.mapPane.style.zIndex        = '1';
+        if (panes.tilePane)       panes.tilePane.style.zIndex       = '2';
+        if (panes.overlayPane)    panes.overlayPane.style.zIndex    = '3';
+        if (panes.shadowPane)     panes.shadowPane.style.zIndex     = '4';
+        if (panes.markerPane)     panes.markerPane.style.zIndex     = '500';
+        if (panes.tooltipPane)    panes.tooltipPane.style.zIndex    = '501';
+        if (panes.popupPane)      panes.popupPane.style.zIndex      = '502';
+    }
 
     function initObstaclesMap() {
         var el = document.getElementById('wcr-obstacles-map');
@@ -88,17 +94,18 @@
         var apiUrl = (window.wcrObstaclesMap && window.wcrObstaclesMap.apiUrl)
                      || el.getAttribute('data-api');
 
-        /* ── Container auf fixe Pixel-Größe setzen ── */
+        /* ── Container fixe Pixel-Größe ── */
         el.innerHTML = '';
         el.style.cssText = [
             'position:relative',
-            'width:'    + W + 'px',
-            'height:'   + H + 'px',
+            'width:'  + W + 'px',
+            'height:' + H + 'px',
             'overflow:hidden',
-            'flex-shrink:0'
+            'flex-shrink:0',
+            'z-index:1'          /* Container selbst ganz unten im Stacking-Context */
         ].join(';');
 
-        /* ── Leaflet Map ── */
+        /* ── Leaflet Map init ── */
         var map = L.map(el, {
             zoomControl:        false,
             attributionControl: true,
@@ -110,7 +117,10 @@
             preferCanvas:       true
         }).setView([MAP_LAT, MAP_LON], ZOOM);
 
-        /* ── Startlayer aus localStorage (Standard = Index 0) ── */
+        /* ── Pane z-indexes sofort korrigieren ── */
+        fixPaneZIndexes(map);
+
+        /* ── Startlayer ── */
         var savedIdx = parseInt(localStorage.getItem(DEFAULT_STYLE_KEY) || '0', 10);
         if (isNaN(savedIdx) || savedIdx < 0 || savedIdx >= STYLES.length) savedIdx = 0;
         var currentStyleIdx = savedIdx;
@@ -142,9 +152,9 @@
                 'background:rgba(15,20,30,.82)',
                 'border:1px solid rgba(255,255,255,.18)',
                 'color:#e8eaf0',
-                'font-size:'    + BTN_FONT,
+                'font-size:'  + BTN_FONT,
                 'font-weight:600',
-                'padding:'      + BTN_PAD,
+                'padding:'    + BTN_PAD,
                 'border-radius:10px',
                 'cursor:pointer',
                 'text-align:left',
@@ -185,8 +195,11 @@
 
         el.appendChild(switcher);
 
-        /* ── Leaflet Größe nach Render korrekt setzen ── */
-        setTimeout(function () { map.invalidateSize(); }, 150);
+        /* ── Panes nach invalidateSize nochmal fixieren ── */
+        setTimeout(function () {
+            map.invalidateSize();
+            fixPaneZIndexes(map);
+        }, 150);
 
         /* ── Obstacles rendern ── */
         function renderObstacles(list) {
@@ -228,7 +241,7 @@
                         'left:' + px + '%',
                         'top:'  + py + '%',
                         'transform:translate(-50%,-50%)' + (rot ? ' rotate(' + rot + 'deg)' : ''),
-                        'z-index:900',
+                        'z-index:500',
                         'display:flex',
                         'flex-direction:column',
                         'align-items:center',
