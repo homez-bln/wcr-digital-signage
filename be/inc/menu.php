@@ -6,16 +6,17 @@ $_currentScript = basename($_SERVER['PHP_SELF']);
 $_currentQuery  = $_SERVER['QUERY_STRING'] ?? '';
 
 $_menuItems = [
-    ['Open',      'ctrl/times.php',         'view_times'],
-    ['Getränke',  'ctrl/drinks.php',         null],
-    ['Essen',     'ctrl/food.php',           null],
-    ['Eis',       'ctrl/list.php?t=ice',     null],
-    ['Cable',     'ctrl/list.php?t=cable',   null],
-    ['Camping',   'ctrl/list.php?t=camping', null],
-    ['Extra',     'ctrl/list.php?t=extra',   null],
-    ['Media',     'ctrl/media.php',          'view_media'],
-    ['DS-Seiten',     'ctrl/ds-seiten.php',      'view_ds'],
-    ['DS Controller',    'ctrl/ds-settings.php',   'view_ds'],
+    ['Open',           'ctrl/times.php',         'view_times'],
+    ['Getränke',       'ctrl/drinks.php',         null],
+    ['Essen',          'ctrl/food.php',           null],
+    ['Eis',            'ctrl/list.php?t=ice',     null],
+    ['Cable',          'ctrl/list.php?t=cable',   null],
+    ['Camping',        'ctrl/list.php?t=camping', null],
+    ['Extra',          'ctrl/list.php?t=extra',   null],
+    ['Media',          'ctrl/media.php',          'view_media'],
+    ['Obstacles',      'ctrl/obstacles.php',      'view_media'],
+    ['DS-Seiten',      'ctrl/ds-seiten.php',      'view_ds'],
+    ['DS Controller',  'ctrl/ds-settings.php',    'view_ds'],
 ];
 
 if (!function_exists('_wcr_menu_active')) {
