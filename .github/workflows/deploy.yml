@@ -14,14 +14,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local_path: './wcr-digital-signage/'
-          remote_path: '/wp-content/plugins/wcr-digital-signage/'
-          sftp_only: true
-          delete_remote_files: false
-          args: '-o ConnectTimeout=5'
+      - name: Deploy via SSH + rsync
+        uses: easingthemes/ssh-deploy@main
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.FTP_SERVER }}
+          REMOTE_USER: ${{ secrets.FTP_USERNAME }}
+          REMOTE_PORT: 22
+          SOURCE: "wcr-digital-signage/"
+          TARGET: "/wp-content/plugins/wcr-digital-signage/"
+          EXCLUDE: ".git, .github, .gitignore, README.md"
+          SCRIPT_BEFORE: |
+            mkdir -p /wp-content/plugins/wcr-digital-signage
+          ARGS: "-avz --delete"
