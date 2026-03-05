@@ -1,15 +1,12 @@
 <?php
 /**
- * ctrl/obstacles.php — Obstacles-Verwaltung (Karte)
+ * ctrl/obstacles.php — Obstacles-Verwaltung + Karten-Einstellungen
  *
- * Verwaltung der Hindernisse für die Obstacle-Map:
- *   - Name / Typ
- *   - Position (pos_x, pos_y) in Prozent (0–100) bezogen auf die Kartenbreite/-höhe
- *   - Rotation in Grad
- *   - Icon-URL (Top-View PNG)
- *   - Aktiv-Flag
+ * Sektion 1: Karten-Config  → Zoom, Lat, Lon per Slider mit Live-Leaflet-Vorschau
+ *            Speichert via POST /wp-json/wakecamp/v1/obstacles/map-config
  *
- * Nutzt die gleiche externe IONOS-DB wie die REST-API (/wakecamp/v1/obstacles).
+ * Sektion 2: Obstacle-Liste → Name, Typ, pos_x, pos_y, Rotation, Icon, Aktiv
+ *            Speichert direkt per PDO in die IONOS-DB (obstacles-Tabelle)
  */
 
 $PAGE_TITLE = 'Obstacles';
@@ -32,6 +29,17 @@ $db->exec("CREATE TABLE IF NOT EXISTS obstacles (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+// ── Aktuelle Map-Config aus WP lesen (via REST-GET) ──
+$WP_API_BASE = 'https://www.wakecamp-ruhlsdorf.de/wp-json/wakecamp/v1';
+$mapCfg = ['lat' => 52.821428, 'lon' => 13.577100, 'zoom' => 17.9];
+try {
+    $raw = @file_get_contents($WP_API_BASE . '/obstacles/map-config');
+    if ($raw) {
+        $parsed = json_decode($raw, true);
+        if (is_array($parsed) && isset($parsed['lat'])) $mapCfg = $parsed;
+    }
+} catch (Exception $e) {}
 
 $saveMsg = '';
 
@@ -104,8 +112,62 @@ $maxRows = max(20, count($rows) + 3);
   <title>Verwaltung: <?= htmlspecialchars($PAGE_TITLE) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="../inc/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    .obs-wrapper { max-width:1180px; margin:0 auto; padding:24px 20px; }
+    /* ── Map-Config Panel ── */
+    .mcp-card {
+      background:#fff; border-radius:14px; box-shadow:0 8px 20px rgba(0,0,0,.05);
+      padding:22px 24px; margin-bottom:28px; max-width:1180px;
+    }
+    .mcp-card h2 { margin:0 0 4px; font-size:16px; font-weight:700; }
+    .mcp-card .sub { font-size:12px; color:#86868b; margin-bottom:18px; }
+    .mcp-grid {
+      display:grid;
+      grid-template-columns:320px 1fr;
+      gap:20px;
+      align-items:start;
+    }
+    .mcp-sliders { display:flex; flex-direction:column; gap:16px; }
+    .sl-row label {
+      display:flex; justify-content:space-between;
+      font-size:12px; font-weight:600; color:#1d1d1f; margin-bottom:5px;
+    }
+    .sl-row label span {
+      font-family:monospace; font-size:12px;
+      background:#f0f4ff; color:#0057d9;
+      padding:1px 8px; border-radius:20px;
+    }
+    .sl-row input[type=range] {
+      width:100%; height:5px; -webkit-appearance:none; appearance:none;
+      border-radius:4px; outline:none; cursor:pointer;
+      background:linear-gradient(90deg,#0071e3 0%,#e5e5ea 0%);
+    }
+    .sl-row input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance:none; width:16px; height:16px;
+      border-radius:50%; background:#0071e3;
+      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer;
+    }
+    .sl-hint { font-size:10px; color:#aeaeb2; margin-top:3px; }
+    #mcp-map {
+      width:100%; height:320px;
+      border-radius:10px; border:1px solid #e5e5ea;
+      overflow:hidden;
+    }
+    .mcp-actions { display:flex; gap:10px; margin-top:16px; }
+    .mcp-hint-bar {
+      font-size:11px; color:#86868b; margin-top:8px;
+      display:flex; align-items:center; gap:6px;
+    }
+    #mcp-coords {
+      font-family:monospace; font-size:11px; color:#0057d9;
+      background:#f0f4ff; padding:2px 8px; border-radius:12px;
+    }
+    #mcp-msg { font-size:12px; min-height:18px; margin-top:8px; }
+    #mcp-msg.ok  { color:#34c759; }
+    #mcp-msg.err { color:#ff3b30; }
+
+    /* ── Obstacles Tabelle (unverändert) ── */
+    .obs-wrapper { max-width:1180px; }
     .obs-table { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,.04); }
     .obs-table th, .obs-table td { padding:6px 8px; border-bottom:1px solid #f0f0f3; text-align:left; vertical-align:middle; }
     .obs-table th { background:#f5f5f7; font-weight:600; font-size:12px; color:#6e6e73; }
@@ -116,6 +178,7 @@ $maxRows = max(20, count($rows) + 3);
     .obs-active { text-align:center; width:60px; }
     .obs-save-bar { margin-top:14px; display:flex; align-items:center; gap:12px; }
     .btn-primary { padding:7px 16px; border-radius:999px; border:none; background:#0071e3; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+    .btn-secondary { padding:7px 16px; border-radius:999px; border:1px solid #d2d2d7; background:#fff; color:#1d1d1f; font-size:13px; cursor:pointer; }
     .obs-msg { font-size:12px; color:#1d1d1f; margin-bottom:10px; }
     .obs-hint { font-size:11px; color:#6e6e73; margin-top:4px; }
   </style>
@@ -124,11 +187,72 @@ $maxRows = max(20, count($rows) + 3);
 
 <?php include __DIR__ . '/../inc/menu.php'; ?>
 
-<div class="obs-wrapper">
+<div class="obs-wrapper" style="padding:24px 20px;">
+
   <div class="header-controls">
-    <h1>🧱 <?= htmlspecialchars($PAGE_TITLE) ?></h1>
-    <p class="obs-hint">Verwalte bis zu 20 Obstacles. Position in Prozent (0–100) bezogen auf die Hintergrundkarte.</p>
+    <h1>🏄 <?= htmlspecialchars($PAGE_TITLE) ?></h1>
   </div>
+
+  <!-- ══════════════════════════════════════════════
+       SEKTION 1: KARTEN-CONFIG
+  ══════════════════════════════════════════════ -->
+  <div class="mcp-card">
+    <h2>🗺️ Karten-Einstellungen</h2>
+    <p class="sub">Zoom, Mittelpunkt und Position der Leaflet-Karte für <code>[wcr_obstacles_map]</code> einstellen.<br>
+    Karte ziehen oder klicken → Koordinaten übernehmen. Dann <strong>Karten-Config speichern</strong>.</p>
+
+    <div class="mcp-grid">
+
+      <!-- Slider -->
+      <div class="mcp-sliders">
+
+        <div class="sl-row">
+          <label>🔍 Zoom <span id="lbl-zoom"><?= number_format((float)$mapCfg['zoom'], 1) ?></span></label>
+          <input type="range" id="sl-zoom"
+                 min="10" max="21" step="0.1"
+                 value="<?= esc_val($mapCfg['zoom']) ?>">
+          <div class="sl-hint">Empfohlen: 16–19 · Standard: 17.9</div>
+        </div>
+
+        <div class="sl-row">
+          <label>📍 Latitude (N–S) <span id="lbl-lat"><?= $mapCfg['lat'] ?></span></label>
+          <input type="range" id="sl-lat"
+                 min="52.75" max="52.90" step="0.0001"
+                 value="<?= esc_val($mapCfg['lat']) ?>">
+          <div class="sl-hint">Nord-Süd-Verschiebung</div>
+        </div>
+
+        <div class="sl-row">
+          <label>📍 Longitude (W–O) <span id="lbl-lon"><?= $mapCfg['lon'] ?></span></label>
+          <input type="range" id="sl-lon"
+                 min="13.50" max="13.65" step="0.0001"
+                 value="<?= esc_val($mapCfg['lon']) ?>">
+          <div class="sl-hint">West-Ost-Verschiebung</div>
+        </div>
+
+        <div class="mcp-actions">
+          <button type="button" id="btn-mcp-reset" class="btn-secondary">↩ Standard</button>
+          <button type="button" id="btn-mcp-save"  class="btn-primary"  style="flex:1;">💾 Karten-Config speichern</button>
+        </div>
+        <div id="mcp-msg"></div>
+      </div>
+
+      <!-- Live-Vorschau -->
+      <div>
+        <div id="mcp-map"></div>
+        <div class="mcp-hint-bar">
+          Klick auf Karte = neues Zentrum &nbsp;·&nbsp;
+          Aktuell: <span id="mcp-coords"><?= $mapCfg['lat'] ?>, <?= $mapCfg['lon'] ?> · zoom <?= $mapCfg['zoom'] ?></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SEKTION 2: OBSTACLES-TABELLE
+  ══════════════════════════════════════════════ -->
+  <p class="obs-hint">Verwalte bis zu 20 Obstacles. Position in Prozent (0–100) bezogen auf die Hintergrundkarte.</p>
 
   <?php if ($saveMsg): ?>
     <div class="obs-msg"><?= htmlspecialchars($saveMsg) ?></div>
@@ -190,10 +314,142 @@ $maxRows = max(20, count($rows) + 3);
       </tbody>
     </table>
     <div class="obs-save-bar">
-      <button type="submit" class="btn-primary">Speichern</button>
+      <button type="submit" class="btn-primary">Obstacles speichern</button>
     </div>
   </form>
+
 </div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+    var DEFAULT = { lat: 52.821428, lon: 13.577100, zoom: 17.9 };
+    var REST    = 'https://www.wakecamp-ruhlsdorf.de/wp-json/wakecamp/v1/obstacles/map-config';
+
+    var slZ   = document.getElementById('sl-zoom');
+    var slLat = document.getElementById('sl-lat');
+    var slLon = document.getElementById('sl-lon');
+    var lblZ  = document.getElementById('lbl-zoom');
+    var lblLt = document.getElementById('lbl-lat');
+    var lblLn = document.getElementById('lbl-lon');
+    var cords = document.getElementById('mcp-coords');
+    var msg   = document.getElementById('mcp-msg');
+
+    /* ── Leaflet init ── */
+    var map = L.map('mcp-map', {
+        zoomControl: true, dragging: true,
+        scrollWheelZoom: true, zoomSnap: 0.1, zoomDelta: 0.1
+    }).setView([parseFloat(slLat.value), parseFloat(slLon.value)], parseFloat(slZ.value));
+
+    L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+        { attribution: '© OpenStreetMap © CARTO', maxZoom: 21 }
+    ).addTo(map);
+
+    /* Fadenkreuz-Marker */
+    var cross = L.divIcon({
+        html: '<svg width="22" height="22" viewBox="0 0 22 22">'
+            + '<line x1="11" y1="0" x2="11" y2="22" stroke="#0071e3" stroke-width="2"/>'
+            + '<line x1="0" y1="11" x2="22" y2="11" stroke="#0071e3" stroke-width="2"/>'
+            + '<circle cx="11" cy="11" r="3" fill="#0071e3"/>'
+            + '</svg>',
+        className: '', iconAnchor: [11, 11]
+    });
+    var marker = L.marker(
+        [parseFloat(slLat.value), parseFloat(slLon.value)],
+        { icon: cross, interactive: false }
+    ).addTo(map);
+
+    /* Gradient-Update */
+    function grad(sl) {
+        var p = (sl.value - sl.min) / (sl.max - sl.min) * 100;
+        sl.style.background = 'linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';
+    }
+    [slZ, slLat, slLon].forEach(grad);
+
+    /* Slider → Karte */
+    function sync() {
+        var z = parseFloat(slZ.value);
+        var lt = parseFloat(slLat.value);
+        var ln = parseFloat(slLon.value);
+        lblZ.textContent  = z.toFixed(1);
+        lblLt.textContent = lt.toFixed(6);
+        lblLn.textContent = ln.toFixed(6);
+        cords.textContent = lt.toFixed(6) + ', ' + ln.toFixed(6) + '  zoom: ' + z.toFixed(1);
+        map.setView([lt, ln], z);
+        marker.setLatLng([lt, ln]);
+        [slZ, slLat, slLon].forEach(grad);
+    }
+    slZ.addEventListener('input',   sync);
+    slLat.addEventListener('input', sync);
+    slLon.addEventListener('input', sync);
+
+    /* Karte ziehen → Slider */
+    map.on('moveend zoomend', function () {
+        var c = map.getCenter();
+        slLat.value = c.lat.toFixed(6);
+        slLon.value = c.lng.toFixed(6);
+        slZ.value   = map.getZoom().toFixed(1);
+        sync();
+    });
+
+    /* Klick → neues Zentrum */
+    map.on('click', function (e) {
+        slLat.value = e.latlng.lat.toFixed(6);
+        slLon.value = e.latlng.lng.toFixed(6);
+        sync();
+        map.panTo([parseFloat(slLat.value), parseFloat(slLon.value)]);
+    });
+
+    /* Reset */
+    document.getElementById('btn-mcp-reset').addEventListener('click', function () {
+        slZ.value   = DEFAULT.zoom;
+        slLat.value = DEFAULT.lat;
+        slLon.value = DEFAULT.lon;
+        sync();
+    });
+
+    /* Speichern */
+    document.getElementById('btn-mcp-save').addEventListener('click', function () {
+        var btn = this;
+        btn.disabled = true;
+        msg.className = '';
+        msg.textContent = 'Speichern …';
+
+        fetch(REST, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lat:  parseFloat(slLat.value),
+                lon:  parseFloat(slLon.value),
+                zoom: parseFloat(slZ.value)
+            })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.ok) {
+                msg.textContent = '✓ Gespeichert! Zoom: ' + d.zoom + ' · ' + d.lat + ', ' + d.lon;
+                msg.className   = 'ok';
+            } else {
+                msg.textContent = '✗ Fehler: ' + (d.message || JSON.stringify(d));
+                msg.className   = 'err';
+            }
+        })
+        .catch(function(e){
+            msg.textContent = '✗ ' + e.message;
+            msg.className   = 'err';
+        })
+        .finally(function(){ btn.disabled = false; });
+    });
+
+    sync();
+})();
+</script>
+
+<?php
+function esc_val($v) { return htmlspecialchars((string)$v, ENT_QUOTES); }
+?>
 
 <?php include __DIR__ . '/../inc/debug.php'; ?>
 </body>
