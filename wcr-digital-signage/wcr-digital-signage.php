@@ -2,13 +2,13 @@
 /**
  * Plugin Name: WCR Digital Signage
  * Description: Digital Signage System für Wake & Camp Ruhlsdorf
- * Version:     1.1.0
+ * Version:     1.2.0
  * Author:      WCR
  */
 
 if (!defined('ABSPATH')) exit;
 
-define( 'WCR_DS_VERSION', '1.1.0' );
+define( 'WCR_DS_VERSION', '1.2.0' );
 define( 'WCR_DS_URL',     plugin_dir_url( __FILE__ ) );
 define( 'WCR_DS_PATH',    plugin_dir_path( __FILE__ ) );
 
@@ -20,6 +20,29 @@ require_once WCR_DS_PATH . 'includes/shortcodes.php';
 require_once WCR_DS_PATH . 'includes/screenshot.php';
 require_once WCR_DS_PATH . 'includes/admin-obstacles.php';  // Obstacles Admin
 require_once WCR_DS_PATH . 'includes/shortcode-produkte.php'; // 3-Produkt Spotlight
+require_once WCR_DS_PATH . 'includes/admin-kino.php';        // 🎬 Kino Admin
+require_once WCR_DS_PATH . 'includes/shortcode-kino.php';    // 🎬 Kino Shortcode
+
+/* ── Plugin Activation: DB-Tabellen erstellen ── */
+register_activation_hook( __FILE__, 'wcr_ds_create_tables' );
+function wcr_ds_create_tables() {
+    global $wpdb;
+    $charset = $wpdb->get_charset_collate();
+
+    // 🎬 Kino-Tabelle
+    $table_kino = $wpdb->prefix . 'wcr_kino';
+    $sql_kino = "CREATE TABLE IF NOT EXISTS $table_kino (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        title VARCHAR(255) NOT NULL,
+        cover_url TEXT NOT NULL,
+        date DATE NOT NULL,
+        sort_order INT DEFAULT 0,
+        PRIMARY KEY (id),
+        INDEX idx_date (date)
+    ) $charset;";
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta( $sql_kino );
+}
 
 /* ── Admin-Menü: Obstacles Karten-Einstellungen ── */
 add_action( 'admin_menu', function() {
@@ -140,7 +163,7 @@ function wcr_ds_load_leaflet() {
     }
 }
 
-// ── Shortcode-Registrierungen ───────────────────────────────────
+// ── Shortcode-Registrierungen ─────────────────────────────────
 add_shortcode( 'wcr_getraenke',    'wcr_sc_getraenke' );
 add_shortcode( 'wcr_softdrinks',   'wcr_sc_softdrinks' );
 add_shortcode( 'wcr_essen',        'wcr_sc_essen' );
@@ -151,9 +174,9 @@ add_shortcode( 'wcr_starter_pack', 'wcr_sc_starter_pack' );
 add_shortcode( 'wcr_eis',          'wcr_sc_eis' );     // Eiskarte
 add_shortcode( 'wcr_cable',        'wcr_sc_cable' );   // Cablepark-Preise
 add_shortcode( 'wcr_camping',      'wcr_sc_camping' ); // Camping-Preise
-// wcr_produkte wird direkt in shortcode-produkte.php registriert
+// wcr_produkte und wcr_kino_slider werden in separaten Dateien registriert
 
-// ── Bestehende Shortcode-Funktionen ────────────────────────────
+// ── Bestehende Shortcode-Funktionen ────────────────────────
 function wcr_sc_getraenke( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
     $out .= '<script>document.addEventListener("DOMContentLoaded",function(){WCR.renderDrinksList("drinks-display",[{label:"Bier",types:["bier","weissbier","wein"]},{label:"Mix",types:["bier-mix","brlo","weinmix"]},{label:"Drinks",types:["longdrink","shots"]}],"/wp-json/wakecamp/v1/drinks");});</script>' . "\n";
@@ -196,7 +219,7 @@ function wcr_sc_starter_pack( $atts ) {
     return '<div id="sp-display"></div>' . "\n";
 }
 
-// ── NEUE Shortcode-Funktionen ───────────────────────────────────
+// ── NEUE Shortcode-Funktionen ───────────────────────────────
 
 /**
  * [wcr_eis] – Eiskarte aus Tabelle `ice`
