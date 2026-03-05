@@ -1,6 +1,7 @@
 <?php
 /**
  * ctrl/obstacles.php — Obstacles-Verwaltung + Karten-Einstellungen
+ * lat/lon statt pos_x/y – einmal eingeben, alle Modi korrekt
  */
 
 $PAGE_TITLE = 'Obstacles';
@@ -25,15 +26,15 @@ $db->exec("CREATE TABLE IF NOT EXISTS obstacles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-// ── Spalten-Migration (MySQL 5.7 kompatibel) ──
+// ── Spalten-Migration ──
 $dbName = $pdo->query("SELECT DATABASE()")->fetchColumn();
 $cols   = $pdo->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = " . $pdo->quote($dbName) . "
     AND TABLE_NAME = 'obstacles'")->fetchAll(PDO::FETCH_COLUMN);
 
 foreach ([
-    'lat'     => 'DECIMAL(10,7) NULL DEFAULT NULL',
-    'lon'     => 'DECIMAL(10,7) NULL DEFAULT NULL',
+    'lat'     => 'DOUBLE NULL DEFAULT NULL',
+    'lon'     => 'DOUBLE NULL DEFAULT NULL',
     'pos_x_l' => 'DECIMAL(6,3) NULL DEFAULT NULL',
     'pos_y_l' => 'DECIMAL(6,3) NULL DEFAULT NULL',
     'pos_x_p' => 'DECIMAL(6,3) NULL DEFAULT NULL',
@@ -74,11 +75,11 @@ function obs_curl(string $url, ?array $postData = null): array {
 }
 
 $STYLE_OPTIONS = [
-    'voyager-nolabels'  => ['label' => '🗺️ OSM (clean)',    'preview_bg' => '#f2ede4'],
-    'satellite'         => ['label' => '🛰️ Satellite',      'preview_bg' => '#2c3e2d'],
-    'dark'              => ['label' => '🌑 Dark',            'preview_bg' => '#1a1a2e'],
-    'light'             => ['label' => '☀️ Light',           'preview_bg' => '#f8f8f8'],
-    'satellite-labels'  => ['label' => '🛰️ Sat + Labels',   'preview_bg' => '#2c3e2d'],
+    'voyager-nolabels'  => ['label' => '🗺️ OSM (clean)',    'dot' => '#e8dcc8'],
+    'satellite'         => ['label' => '🛰️ Satellite',      'dot' => '#4a6741'],
+    'dark'              => ['label' => '🌑 Dark',            'dot' => '#1a1a2e'],
+    'light'             => ['label' => '☀️ Light',           'dot' => '#f0f0f0'],
+    'satellite-labels'  => ['label' => '🛰️ Sat + Labels',   'dot' => '#3d6b50'],
 ];
 
 // ── Mode ──
@@ -123,27 +124,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
     }
 }
 
-// ── Obstacles speichern ──
+// ── Obstacles speichern (lat/lon) ──
 $saveMsg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
     $ids     = $_POST['id']       ?? [];
     $names   = $_POST['name']     ?? [];
     $types   = $_POST['type']     ?? [];
     $icons   = $_POST['icon_url'] ?? [];
-    $posXLs  = $_POST['pos_x_l']  ?? [];
-    $posYLs  = $_POST['pos_y_l']  ?? [];
-    $posXPs  = $_POST['pos_x_p']  ?? [];
-    $posYPs  = $_POST['pos_y_p']  ?? [];
+    $lats    = $_POST['lat']      ?? [];
+    $lons    = $_POST['lon']      ?? [];
     $rots    = $_POST['rotation'] ?? [];
     $actives = $_POST['active']   ?? [];
 
     $stmt = $db->prepare("INSERT INTO obstacles
-        (id, name, type, icon_url, pos_x_l, pos_y_l, pos_x_p, pos_y_p, rotation, active)
-        VALUES (:id,:name,:type,:icon_url,:pos_x_l,:pos_y_l,:pos_x_p,:pos_y_p,:rotation,:active)
+        (id, name, type, icon_url, lat, lon, rotation, active)
+        VALUES (:id,:name,:type,:icon_url,:lat,:lon,:rotation,:active)
         ON DUPLICATE KEY UPDATE
             name=VALUES(name), type=VALUES(type), icon_url=VALUES(icon_url),
-            pos_x_l=VALUES(pos_x_l), pos_y_l=VALUES(pos_y_l),
-            pos_x_p=VALUES(pos_x_p), pos_y_p=VALUES(pos_y_p),
+            lat=VALUES(lat), lon=VALUES(lon),
             rotation=VALUES(rotation), active=VALUES(active)");
 
     $count = 0;
@@ -151,16 +149,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
         $n = trim((string)$n);
         $t = trim((string)($types[$idx] ?? ''));
         if ($n === '' && $t === '') continue;
-        $clamp = function($v) { $v=(float)str_replace(',','.',(string)$v); if($v<0)$v=0; if($v>100)$v=100; return $v; };
+        $lat_v = trim((string)($lats[$idx] ?? ''));
+        $lon_v = trim((string)($lons[$idx] ?? ''));
         $stmt->execute([
             ':id'       => ((int)($ids[$idx]??0)) ?: null,
             ':name'     => $n,
             ':type'     => $t ?: 'default',
             ':icon_url' => trim((string)($icons[$idx]??'')),
-            ':pos_x_l'  => $posXLs[$idx] !== '' ? $clamp($posXLs[$idx]??0) : null,
-            ':pos_y_l'  => $posYLs[$idx] !== '' ? $clamp($posYLs[$idx]??0) : null,
-            ':pos_x_p'  => $posXPs[$idx] !== '' ? $clamp($posXPs[$idx]??0) : null,
-            ':pos_y_p'  => $posYPs[$idx] !== '' ? $clamp($posYPs[$idx]??0) : null,
+            ':lat'      => $lat_v !== '' ? (float)str_replace(',','.',$lat_v) : null,
+            ':lon'      => $lon_v !== '' ? (float)str_replace(',','.',$lon_v) : null,
             ':rotation' => (float)str_replace(',','.',(string)($rots[$idx]??0)),
             ':active'   => isset($actives[$idx]) ? 1 : 0,
         ]);
@@ -172,8 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
 
 if (isset($_GET['saved'])) $saveMsg = '✓ ' . (int)$_GET['saved'] . ' Obstacle(s) gespeichert';
 
-$rows    = $db->query("SELECT * FROM obstacles ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
-$maxRows = max(20, count($rows) + 3);
+$rows    = $db->query("SELECT id, name, type, icon_url, lat, lon, rotation, active FROM obstacles ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+$maxRows = max(5, count($rows) + 3);
+$rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -182,54 +180,47 @@ $maxRows = max(20, count($rows) + 3);
   <title>Verwaltung: <?= htmlspecialchars($PAGE_TITLE) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="../inc/style.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.6.1/ol.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    .mcp-card { background:#fff; border-radius:14px; box-shadow:0 8px 20px rgba(0,0,0,.05); padding:22px 24px; margin-bottom:28px; max-width:1180px; }
+    .mcp-card { background:#fff; border-radius:14px; box-shadow:0 8px 20px rgba(0,0,0,.05); padding:22px 24px; margin-bottom:28px; max-width:1280px; }
     .mcp-card h2 { margin:0 0 4px; font-size:16px; font-weight:700; }
     .mcp-card .sub { font-size:12px; color:#86868b; margin-bottom:18px; }
-    .mcp-grid { display:grid; grid-template-columns:320px 1fr; gap:20px; align-items:start; }
-    .mcp-sliders { display:flex; flex-direction:column; gap:16px; }
+    .mcp-grid { display:grid; grid-template-columns:300px 1fr; gap:20px; align-items:start; }
+    .mcp-sliders { display:flex; flex-direction:column; gap:14px; }
     .sl-row label { display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:#1d1d1f; margin-bottom:5px; }
     .sl-row label span { font-family:monospace; font-size:12px; background:#f0f4ff; color:#0057d9; padding:1px 8px; border-radius:20px; }
     .sl-row input[type=range] { width:100%; height:5px; -webkit-appearance:none; appearance:none; border-radius:4px; outline:none; cursor:pointer; }
     .sl-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#0071e3; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer; }
     .sl-hint { font-size:10px; color:#aeaeb2; margin-top:3px; }
-    #mcp-map { width:100%; height:320px; border-radius:10px; border:1px solid #e5e5ea; overflow:hidden; position:relative; background:#f2ede4; }
-    .mcp-crosshair { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:22px; height:22px; pointer-events:none; z-index:10; }
-    .style-switcher { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-    .style-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; border-radius:20px; border:2px solid #e5e7eb; background:#f9fafb; font-size:12px; font-weight:600; color:#374151; cursor:pointer; transition:all .15s; white-space:nowrap; }
-    .style-btn:hover { border-color:#bdd9f5; background:#e8f5ff; color:#1a6fb5; }
+    #mcp-map { width:100%; height:360px; border-radius:10px; border:1px solid #e5e5ea; overflow:hidden; background:#f2ede4; }
+    .style-switcher { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:14px; }
+    .style-btn { display:flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; border:2px solid #e5e7eb; background:#f9fafb; font-size:12px; font-weight:600; color:#374151; cursor:pointer; transition:all .15s; }
     .style-btn.active { border-color:#0071e3; background:#e8f5ff; color:#0057d9; }
-    .style-btn .style-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-    .mcp-actions { display:flex; gap:10px; margin-top:16px; }
-    .mcp-hint-bar { font-size:11px; color:#86868b; margin-top:8px; display:flex; align-items:center; gap:6px; }
-    #mcp-coords { font-family:monospace; font-size:11px; color:#0057d9; background:#f0f4ff; padding:2px 8px; border-radius:12px; }
+    .style-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .mcp-actions { display:flex; gap:10px; margin-top:14px; }
+    .mcp-hint-bar { font-size:11px; color:#86868b; margin-top:6px; }
+    #mcp-coords { font-family:monospace; font-size:11px; color:#0057d9; }
     .cfg-msg { font-size:12px; margin-top:10px; padding:5px 10px; border-radius:6px; }
     .cfg-msg.ok    { background:rgba(52,199,89,.10); color:#1a7a30; border:1px solid rgba(52,199,89,.25); }
     .cfg-msg.error { background:rgba(255,59,48,.08); color:#c0392b; border:1px solid rgba(255,59,48,.2); word-break:break-all; }
+    /* Obstacle-Tabelle */
     .obs-wrapper { max-width:1280px; }
-    .obs-table { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,.04); }
+    .obs-table { width:100%; border-collapse:collapse; font-size:13px; }
     .obs-table th, .obs-table td { padding:5px 6px; border-bottom:1px solid #f0f0f3; text-align:left; vertical-align:middle; }
     .obs-table th { background:#f5f5f7; font-weight:600; font-size:11px; color:#6e6e73; white-space:nowrap; }
-    .obs-table tr:last-child td { border-bottom:none; }
+    .obs-table tr.obs-active-row td { background:#eef6ff; }
+    .obs-table tr.obs-active-row { box-shadow:inset 3px 0 0 #0071e3; }
     .obs-table input[type="text"], .obs-table input[type="number"] { width:100%; box-sizing:border-box; padding:4px 6px; border-radius:6px; border:1px solid #d2d2d7; font-size:12px; }
-    .obs-table input[type="number"] { text-align:right; }
-    /* Landscape-Felder = blau, Portrait-Felder = lila */
-    .obs-table input.ls { border-color:#bdd9f5; background:#f0f8ff; }
-    .obs-table input.pt { border-color:#d8b4fe; background:#faf0ff; }
-    .obs-table th.ls { color:#0057d9; }
-    .obs-table th.pt { color:#7c3aed; }
+    .obs-table tr.obs-active-row input.obs-lat,
+    .obs-table tr.obs-active-row input.obs-lon { border-color:#0071e3; background:#dbeafe; }
     .obs-id { width:36px; color:#9f9fa5; font-size:11px; }
     .obs-active { text-align:center; width:50px; }
     .obs-save-bar { margin-top:14px; display:flex; align-items:center; gap:12px; }
     .btn-primary   { padding:7px 16px; border-radius:999px; border:none; background:#0071e3; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
     .btn-secondary { padding:7px 16px; border-radius:999px; border:1px solid #d2d2d7; background:#fff; color:#1d1d1f; font-size:13px; cursor:pointer; }
     .btn-secondary.is-active { background:#f0f4ff; border-color:#bfd7ff; color:#0057d9; }
-    .obs-msg  { font-size:12px; color:#1d1d1f; margin-bottom:10px; }
-    .obs-hint { font-size:11px; color:#6e6e73; margin-top:4px; }
-    .legend { display:flex; gap:14px; font-size:11px; margin-bottom:10px; }
-    .legend span { display:flex; align-items:center; gap:5px; }
-    .legend b { display:inline-block; width:12px; height:12px; border-radius:3px; }
+    .obs-msg { font-size:12px; margin-bottom:10px; color:#1a7a30; }
+    .obs-hint-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:12px; color:#1e40af; margin-bottom:14px; line-height:1.6; }
   </style>
 </head>
 <body class="bo">
@@ -245,7 +236,7 @@ $maxRows = max(20, count($rows) + 3);
   <!-- SEKTION 1: KARTEN-CONFIG -->
   <div class="mcp-card">
     <h2>🗺️ Karten-Einstellungen</h2>
-    <p class="sub">Aktuell: <strong><?= htmlspecialchars($modeLabel) ?></strong></p>
+    <p class="sub">Aktuell: <strong><?= htmlspecialchars($modeLabel) ?></strong> &mdash; Einstellungen gelten nur für diesen Modus</p>
 
     <div class="mcp-actions" style="margin-top:0;margin-bottom:16px;">
       <?php $self = strtok($_SERVER['REQUEST_URI'], '?'); ?>
@@ -258,14 +249,12 @@ $maxRows = max(20, count($rows) + 3);
       <input type="hidden" name="mode" value="<?= hv($mode) ?>">
       <input type="hidden" id="map_style" name="map_style" value="<?= hv($currentStyle) ?>">
 
-      <div style="margin-bottom:16px;">
-        <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">🎨 Kartenstil</div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:7px;">🎨 Kartenstil</div>
         <div class="style-switcher">
-          <?php
-          $styleDots=['voyager-nolabels'=>'#e8dcc8','satellite'=>'#4a6741','dark'=>'#1a1a2e','light'=>'#f0f0f0','satellite-labels'=>'#3d6b50'];
-          foreach ($STYLE_OPTIONS as $key => $opt): ?>
-          <button type="button" class="style-btn <?= $key===$currentStyle?'active':'' ?>" data-style="<?= hv($key) ?>" onclick="setMapStyle('<?= hv($key) ?>')">
-            <span class="style-dot" style="background:<?= hv($styleDots[$key]??'#ccc') ?>"></span>
+          <?php foreach ($STYLE_OPTIONS as $key => $opt): ?>
+          <button type="button" class="style-btn <?= $key===$currentStyle?'active':'' ?>" data-style="<?= hv($key) ?>">
+            <span class="style-dot" style="background:<?= hv($opt['dot']) ?>"></span>
             <?= htmlspecialchars($opt['label']) ?>
           </button>
           <?php endforeach; ?>
@@ -303,16 +292,11 @@ $maxRows = max(20, count($rows) + 3);
           </div>
         </div>
         <div>
-          <div id="mcp-map">
-            <div class="mcp-crosshair" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 22 22">
-                <line x1="11" y1="0" x2="11" y2="22" stroke="#0071e3" stroke-width="2"/>
-                <line x1="0" y1="11" x2="22" y2="11" stroke="#0071e3" stroke-width="2"/>
-                <circle cx="11" cy="11" r="3" fill="#0071e3"/>
-              </svg>
-            </div>
+          <div id="mcp-map"></div>
+          <div class="mcp-hint-bar">
+            <span id="mcp-coords"><?= hv($mapCfg['lat']) ?>, <?= hv($mapCfg['lon']) ?> · zoom <?= hv($mapCfg['zoom']) ?> · rot <?= hv((float)($mapCfg['rot']??0)) ?>°</span><br>
+            <span style="color:#0071e3;">Zeile aktivieren (↓) → Klick auf Karte setzt Obstacle-Position &middot; ohne Auswahl = Karten-Zentrum verschieben</span>
           </div>
-          <div class="mcp-hint-bar">Klick auf Karte = neues Zentrum &nbsp;·&nbsp; <span id="mcp-coords"><?= hv($mapCfg['lat']) ?>, <?= hv($mapCfg['lon']) ?> · zoom <?= hv($mapCfg['zoom']) ?> · rot <?= hv((float)($mapCfg['rot']??0)) ?>°</span></div>
         </div>
       </div>
       <?php if ($cfgMsg): ?>
@@ -322,18 +306,17 @@ $maxRows = max(20, count($rows) + 3);
   </div>
 
   <!-- SEKTION 2: OBSTACLES-TABELLE -->
-  <p class="obs-hint">Obstacles mit <strong>separaten Positionen</strong> pro Modus. Leer lassen = Obstacle in diesem Modus nicht angezeigt.</p>
-
-  <div class="legend">
-    <span><b style="background:#bdd9f5;"></b> 🖥 Landscape X/Y</span>
-    <span><b style="background:#d8b4fe;"></b> 📱 Portrait X/Y</span>
+  <div class="obs-hint-box">
+    <strong>📍 Obstacle platzieren:</strong>
+    Zeile anklicken (wird blau markiert) → auf die Karte klicken → lat/lon wird automatisch gesetzt.<br>
+    Obstacles mit gesetztem <strong>lat/lon</strong> erscheinen in <em>allen</em> Modi (Landscape + Portrait) korrekt — egal wie die Karte gedreht ist.
   </div>
 
   <?php if ($saveMsg): ?>
     <div class="obs-msg"><?= htmlspecialchars($saveMsg) ?></div>
   <?php endif; ?>
 
-  <form method="POST">
+  <form method="POST" id="obs-form">
     <input type="hidden" name="save_obstacles" value="1">
     <input type="hidden" name="mode" value="<?= hv($mode) ?>">
     <table class="obs-table">
@@ -341,40 +324,34 @@ $maxRows = max(20, count($rows) + 3);
         <tr>
           <th class="obs-id">ID</th>
           <th>Name</th>
-          <th style="width:70px;">Typ</th>
-          <th class="ls" style="width:72px;">🖥 X %</th>
-          <th class="ls" style="width:72px;">🖥 Y %</th>
-          <th class="pt" style="width:72px;">📱 X %</th>
-          <th class="pt" style="width:72px;">📱 Y %</th>
+          <th style="width:80px;">Typ</th>
+          <th style="width:115px;">Lat</th>
+          <th style="width:115px;">Lon</th>
           <th style="width:70px;">Rotation</th>
-          <th>Icon‑URL</th>
+          <th>Icon-URL</th>
           <th class="obs-active">Aktiv</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="obs-tbody">
         <?php $i = 0; foreach ($rows as $row): $i++; ?>
-        <tr>
+        <tr class="obs-row" data-id="<?= (int)$row['id'] ?>">
           <td class="obs-id"><input type="hidden" name="id[]" value="<?= (int)$row['id'] ?>">#<?= (int)$row['id'] ?></td>
           <td><input type="text" name="name[]" value="<?= htmlspecialchars($row['name']) ?>"></td>
           <td><input type="text" name="type[]" value="<?= htmlspecialchars($row['type']) ?>"></td>
-          <td><input class="ls" type="number" name="pos_x_l[]" value="<?= htmlspecialchars($row['pos_x_l']??'') ?>" min="0" max="100" step="0.1" placeholder="—"></td>
-          <td><input class="ls" type="number" name="pos_y_l[]" value="<?= htmlspecialchars($row['pos_y_l']??'') ?>" min="0" max="100" step="0.1" placeholder="—"></td>
-          <td><input class="pt" type="number" name="pos_x_p[]" value="<?= htmlspecialchars($row['pos_x_p']??'') ?>" min="0" max="100" step="0.1" placeholder="—"></td>
-          <td><input class="pt" type="number" name="pos_y_p[]" value="<?= htmlspecialchars($row['pos_y_p']??'') ?>" min="0" max="100" step="0.1" placeholder="—"></td>
-          <td><input type="number" name="rotation[]" value="<?= htmlspecialchars($row['rotation']) ?>" step="1"></td>
-          <td><input type="text" name="icon_url[]" value="<?= htmlspecialchars($row['icon_url']) ?>"></td>
-          <td class="obs-active"><input type="checkbox" name="active[<?= $i-1 ?>]" value="1" <?= $row['active']?'checked':'' ?>></td>
+          <td><input class="obs-lat" type="number" name="lat[]" step="0.000001" value="<?= htmlspecialchars($row['lat']??'') ?>" placeholder="52.821…"></td>
+          <td><input class="obs-lon" type="number" name="lon[]" step="0.000001" value="<?= htmlspecialchars($row['lon']??'') ?>" placeholder="13.577…"></td>
+          <td><input type="number" name="rotation[]" value="<?= htmlspecialchars($row['rotation']??0) ?>" step="1"></td>
+          <td><input type="text" name="icon_url[]" value="<?= htmlspecialchars($row['icon_url']??'') ?>" style="min-width:160px;"></td>
+          <td class="obs-active"><input type="checkbox" name="active[<?= $i-1 ?>]" value="1" <?= !empty($row['active'])?'checked':'' ?>></td>
         </tr>
         <?php endforeach; ?>
         <?php for (; $i < $maxRows; $i++): ?>
-        <tr>
+        <tr class="obs-row" data-id="">
           <td class="obs-id"><input type="hidden" name="id[]" value="0">#neu</td>
           <td><input type="text" name="name[]" value=""></td>
           <td><input type="text" name="type[]" value=""></td>
-          <td><input class="ls" type="number" name="pos_x_l[]" value="" min="0" max="100" step="0.1" placeholder="—"></td>
-          <td><input class="ls" type="number" name="pos_y_l[]" value="" min="0" max="100" step="0.1" placeholder="—"></td>
-          <td><input class="pt" type="number" name="pos_x_p[]" value="" min="0" max="100" step="0.1" placeholder="—"></td>
-          <td><input class="pt" type="number" name="pos_y_p[]" value="" min="0" max="100" step="0.1" placeholder="—"></td>
+          <td><input class="obs-lat" type="number" name="lat[]" step="0.000001" value="" placeholder="52.821…"></td>
+          <td><input class="obs-lon" type="number" name="lon[]" step="0.000001" value="" placeholder="13.577…"></td>
           <td><input type="number" name="rotation[]" value="0" step="1"></td>
           <td><input type="text" name="icon_url[]" value=""></td>
           <td class="obs-active"><input type="checkbox" name="active[<?= $i ?>]" value="1" checked></td>
@@ -389,34 +366,173 @@ $maxRows = max(20, count($rows) + 3);
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/ol@10.6.1/dist/ol.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
-    var DEF = { lat: 52.821428, lon: 13.577100, zoom: 17.9, rot: 0 };
+    var DEF      = { lat: 52.821428, lon: 13.577100, zoom: 17.9, rot: 0 };
     var TILE_URLS = {
-        'voyager-nolabels': ['https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png','https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png','https://c.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png'],
-        'satellite':        ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-        'dark':             ['https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png','https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png','https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png'],
-        'light':            ['https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png','https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png','https://c.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'],
-        'satellite-labels': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']
+        'voyager-nolabels': 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+        'satellite':        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'dark':             'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+        'light':            'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+        'satellite-labels': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
     };
-    var slZ=document.getElementById('sl-zoom'),slLat=document.getElementById('sl-lat'),slLon=document.getElementById('sl-lon'),slRot=document.getElementById('sl-rot');
-    var lblZ=document.getElementById('lbl-zoom'),lblLt=document.getElementById('lbl-lat'),lblLn=document.getElementById('lbl-lon'),lblR=document.getElementById('lbl-rot');
-    var cords=document.getElementById('mcp-coords'),hZ=document.getElementById('map_zoom'),hLat=document.getElementById('map_lat'),hLon=document.getElementById('map_lon'),hRot=document.getElementById('map_rot'),hStyle=document.getElementById('map_style');
-    function deg2rad(d){return d*Math.PI/180;} function rad2deg(r){return r*180/Math.PI;}
-    function grad(sl){var p=(sl.value-sl.min)/(sl.max-sl.min)*100;sl.style.background='linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';}
-    var view=new ol.View({center:ol.proj.fromLonLat([parseFloat(slLon.value),parseFloat(slLat.value)]),zoom:parseFloat(slZ.value),rotation:deg2rad(parseFloat(slRot.value||'0'))});
-    var tileSource=new ol.source.XYZ({urls:TILE_URLS[hStyle.value]||TILE_URLS['voyager-nolabels'],maxZoom:21});
-    var tileLayer=new ol.layer.Tile({preload:Infinity,updateWhileAnimating:true,updateWhileInteracting:true,source:tileSource});
-    var map=new ol.Map({target:'mcp-map',layers:[tileLayer],view:view,controls:[new ol.control.Zoom(),new ol.control.Rotate()]});
-    window.setMapStyle=function(key){tileLayer.setSource(new ol.source.XYZ({urls:TILE_URLS[key]||TILE_URLS['voyager-nolabels'],maxZoom:21}));hStyle.value=key;document.querySelectorAll('.style-btn').forEach(function(b){b.classList.toggle('active',b.dataset.style===key);})};
-    function syncUIFromView(){var z=view.getZoom(),c=ol.proj.toLonLat(view.getCenter()),r=rad2deg(view.getRotation());slZ.value=(+z).toFixed(1);slLat.value=(+c[1]).toFixed(6);slLon.value=(+c[0]).toFixed(6);slRot.value=(+r).toFixed(1);lblZ.textContent=(+z).toFixed(1);lblLt.textContent=(+c[1]).toFixed(6);lblLn.textContent=(+c[0]).toFixed(6);lblR.textContent=(+r).toFixed(1)+'°';cords.textContent=(+c[1]).toFixed(6)+', '+(+c[0]).toFixed(6)+' · zoom '+(+z).toFixed(1)+' · rot '+(+r).toFixed(1)+'°';hZ.value=(+z).toFixed(1);hLat.value=(+c[1]).toFixed(6);hLon.value=(+c[0]).toFixed(6);hRot.value=(+r).toFixed(1);[slZ,slLat,slLon,slRot].forEach(grad);}
-    function syncViewFromUI(){view.setZoom(parseFloat(slZ.value));view.setCenter(ol.proj.fromLonLat([parseFloat(slLon.value),parseFloat(slLat.value)]));view.setRotation(deg2rad(parseFloat(slRot.value||'0')));syncUIFromView();}
-    map.on('click',function(evt){view.setCenter(evt.coordinate);syncUIFromView();});
-    map.on('moveend',function(){syncUIFromView();});
-    slZ.addEventListener('input',syncViewFromUI);slLat.addEventListener('input',syncViewFromUI);slLon.addEventListener('input',syncViewFromUI);slRot.addEventListener('input',syncViewFromUI);
-    document.getElementById('btn-mcp-reset').addEventListener('click',function(){slZ.value=DEF.zoom;slLat.value=DEF.lat;slLon.value=DEF.lon;slRot.value=DEF.rot;syncViewFromUI();});
-    syncUIFromView();
+    var TYPE_ICONS = {kicker:'🚀',rail:'🟧',box:'🟦',fun:'⭐',slider:'🟩','default':'🟣'};
+
+    var slZ   = document.getElementById('sl-zoom');
+    var slLat = document.getElementById('sl-lat');
+    var slLon = document.getElementById('sl-lon');
+    var slRot = document.getElementById('sl-rot');
+    var lblZ  = document.getElementById('lbl-zoom');
+    var lblLt = document.getElementById('lbl-lat');
+    var lblLn = document.getElementById('lbl-lon');
+    var lblR  = document.getElementById('lbl-rot');
+    var coords   = document.getElementById('mcp-coords');
+    var hZ    = document.getElementById('map_zoom');
+    var hLat  = document.getElementById('map_lat');
+    var hLon  = document.getElementById('map_lon');
+    var hRot  = document.getElementById('map_rot');
+    var hStyle= document.getElementById('map_style');
+
+    var activeRow    = null;
+    var obsMarkers   = {};
+
+    // ── Leaflet ──
+    var map = L.map('mcp-map', {
+        zoomControl:true, dragging:true,
+        scrollWheelZoom:true, zoomSnap:0.1, zoomDelta:0.1
+    }).setView([parseFloat(slLat.value), parseFloat(slLon.value)], parseFloat(slZ.value));
+
+    var tileLayer = L.tileLayer(TILE_URLS[hStyle.value] || TILE_URLS['voyager-nolabels'],
+        {attribution:'© OpenStreetMap © CARTO', maxZoom:21, detectRetina:true}).addTo(map);
+
+    // Fadenkreuz
+    var crossIcon = L.divIcon({
+        html:'<svg width="22" height="22" viewBox="0 0 22 22"><line x1="11" y1="0" x2="11" y2="22" stroke="#0071e3" stroke-width="2"/><line x1="0" y1="11" x2="22" y2="11" stroke="#0071e3" stroke-width="2"/><circle cx="11" cy="11" r="3" fill="#0071e3"/></svg>',
+        className:'', iconAnchor:[11,11]
+    });
+    var crossMarker = L.marker([parseFloat(slLat.value), parseFloat(slLon.value)],
+        {icon:crossIcon, interactive:false, zIndexOffset:2000}).addTo(map);
+
+    // ── Style-Buttons ──
+    document.querySelectorAll('.style-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var key = btn.dataset.style;
+            tileLayer.setUrl(TILE_URLS[key] || TILE_URLS['voyager-nolabels']);
+            hStyle.value = key;
+            document.querySelectorAll('.style-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.style===key); });
+        });
+    });
+
+    // ── Slider-Gradient ──
+    function grad(sl){
+        var p=(sl.value-sl.min)/(sl.max-sl.min)*100;
+        sl.style.background='linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';
+    }
+
+    // ── UI sync ──
+    function syncUIFromSliders(){
+        var z=parseFloat(slZ.value), lat=parseFloat(slLat.value), lon=parseFloat(slLon.value), rot=parseFloat(slRot.value||'0');
+        lblZ.textContent  = z.toFixed(1);
+        lblLt.textContent = lat.toFixed(6);
+        lblLn.textContent = lon.toFixed(6);
+        lblR.textContent  = rot.toFixed(1)+'\u00b0';
+        coords.textContent= lat.toFixed(6)+', '+lon.toFixed(6)+' \u00b7 zoom '+z.toFixed(1)+' \u00b7 rot '+rot.toFixed(1)+'\u00b0';
+        hZ.value=z.toFixed(1); hLat.value=lat.toFixed(6); hLon.value=lon.toFixed(6); hRot.value=rot.toFixed(1);
+        map.setView([lat,lon],z);
+        crossMarker.setLatLng([lat,lon]);
+        [slZ,slLat,slLon,slRot].forEach(grad);
+    }
+
+    function syncSlidersFromMap(){
+        var c=map.getCenter(), z=map.getZoom();
+        slLat.value=(+c.lat).toFixed(6); slLon.value=(+c.lng).toFixed(6); slZ.value=(+z).toFixed(1);
+        syncUIFromSliders();
+    }
+
+    slZ.addEventListener('input',   syncUIFromSliders);
+    slLat.addEventListener('input', syncUIFromSliders);
+    slLon.addEventListener('input', syncUIFromSliders);
+    slRot.addEventListener('input', syncUIFromSliders);
+    map.on('moveend zoomend', syncSlidersFromMap);
+
+    document.getElementById('btn-mcp-reset').addEventListener('click',function(){
+        slZ.value=DEF.zoom; slLat.value=DEF.lat; slLon.value=DEF.lon; slRot.value=DEF.rot;
+        syncUIFromSliders();
+    });
+
+    // ── Obstacle-Marker ──
+    function makeObsIcon(name, type, rot) {
+        var emoji = TYPE_ICONS[(type||'').toLowerCase()] || TYPE_ICONS['default'];
+        var html = '<div style="display:flex;flex-direction:column;align-items:center;transform:rotate('+(rot||0)+'deg)">'
+            + '<div style="font-size:20px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">'+emoji+'</div>'
+            + '<span style="font-size:10px;font-weight:700;color:#fff;background:rgba(0,0,0,.6);padding:1px 4px;border-radius:3px;white-space:nowrap">'+(name||'')+'</span>'
+            + '</div>';
+        return L.divIcon({html:html, className:'', iconAnchor:[16,16]});
+    }
+
+    function renderObsMarkers(){
+        Object.values(obsMarkers).forEach(function(m){ map.removeLayer(m); });
+        obsMarkers = {};
+        document.querySelectorAll('.obs-row').forEach(function(row, idx){
+            var lat = parseFloat(row.querySelector('.obs-lat').value);
+            var lon = parseFloat(row.querySelector('.obs-lon').value);
+            if (!isFinite(lat)||!isFinite(lon)||lat===0||lon===0) return;
+            var name = row.querySelector('input[name="name[]"]').value;
+            var type = row.querySelector('input[name="type[]"]').value;
+            var rot  = parseFloat(row.querySelector('input[name="rotation[]"]').value)||0;
+            var mk = L.marker([lat,lon],{
+                icon: makeObsIcon(name,type,rot),
+                draggable: true
+            }).addTo(map);
+            mk.on('dragend', function(e){
+                row.querySelector('.obs-lat').value = e.target.getLatLng().lat.toFixed(6);
+                row.querySelector('.obs-lon').value = e.target.getLatLng().lng.toFixed(6);
+            });
+            mk.on('click', function(){ setActiveRow(row); });
+            obsMarkers[idx] = mk;
+        });
+    }
+
+    // ── Aktive Zeile ──
+    function setActiveRow(row){
+        document.querySelectorAll('.obs-row').forEach(function(r){ r.classList.remove('obs-active-row'); });
+        if (row === activeRow) { activeRow = null; return; }
+        activeRow = row;
+        row.classList.add('obs-active-row');
+        var lat = parseFloat(row.querySelector('.obs-lat').value);
+        var lon = parseFloat(row.querySelector('.obs-lon').value);
+        if (isFinite(lat) && isFinite(lon) && lat!==0) map.panTo([lat,lon]);
+    }
+
+    document.querySelectorAll('.obs-row').forEach(function(row){
+        row.addEventListener('click', function(e){ setActiveRow(row); });
+        row.querySelector('.obs-lat').addEventListener('change', renderObsMarkers);
+        row.querySelector('.obs-lon').addEventListener('change', renderObsMarkers);
+    });
+
+    // ── Klick auf Karte ──
+    map.on('click', function(e){
+        if (activeRow) {
+            var lat = e.latlng.lat.toFixed(6);
+            var lon = e.latlng.lng.toFixed(6);
+            activeRow.querySelector('.obs-lat').value = lat;
+            activeRow.querySelector('.obs-lon').value = lon;
+            var name = activeRow.querySelector('input[name="name[]"]').value || 'Obstacle';
+            coords.textContent = '\u2705 ' + name + ' \u2192 ' + lat + ', ' + lon;
+            renderObsMarkers();
+        } else {
+            syncSlidersFromMap();
+            map.panTo(e.latlng);
+            map.setView(e.latlng, map.getZoom());
+            syncSlidersFromMap();
+        }
+    });
+
+    // Init
+    [slZ,slLat,slLon,slRot].forEach(grad);
+    setTimeout(function(){ renderObsMarkers(); map.invalidateSize(); }, 300);
+
 })();
 </script>
 
