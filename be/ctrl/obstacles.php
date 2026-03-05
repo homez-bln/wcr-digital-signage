@@ -179,9 +179,10 @@ $maxRows = max(20, count($rows) + 3);
     .sl-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#0071e3; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer; }
     .sl-hint { font-size:10px; color:#aeaeb2; margin-top:3px; }
 
+    /* CARTO Voyager land background – masks empty corners during rotation */
     #mcp-map {
       width:100%; height:320px; border-radius:10px; border:1px solid #e5e5ea; overflow:hidden;
-      position: relative;
+      position: relative; background: #f2ede4;
     }
     .mcp-crosshair {
       position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
@@ -387,7 +388,10 @@ $maxRows = max(20, count($rows) + 3);
         target: 'mcp-map',
         layers: [
             new ol.layer.Tile({
-                // OL10: urls[] array for subdomain rotation (Leaflet {a-c} syntax not supported)
+                // preload:Infinity → OL loads extra tiles beyond viewport to fill rotated corners
+                preload: Infinity,
+                updateWhileAnimating: true,
+                updateWhileInteracting: true,
                 source: new ol.source.XYZ({
                     urls: [
                         'https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
@@ -400,7 +404,6 @@ $maxRows = max(20, count($rows) + 3);
             })
         ],
         view: view,
-        // OL10: ol.control.defaults() removed – use explicit array
         controls: [
             new ol.control.Zoom(),
             new ol.control.Rotate()
