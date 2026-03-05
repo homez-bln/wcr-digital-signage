@@ -298,7 +298,7 @@ if (!function_exists('wcr_sc_obstacles_map')) {
     function wcr_sc_obstacles_map($atts) {
 
         $atts = shortcode_atts([
-            'mode' => 'landscape',   // 'landscape' | 'portrait'
+            'mode' => 'landscape',
         ], $atts, 'wcr_obstacles_map');
 
         $is_portrait = (strtolower(trim($atts['mode'])) === 'portrait');
@@ -329,13 +329,18 @@ if (!function_exists('wcr_sc_obstacles_map')) {
             'mode'          => $mode,
         ]);
 
-        // ── Obstacles aus DB ──
+        // ── Obstacles aus DB — alle 6 Positions-Spalten laden ──
         $obstacles      = [];
         $is_placeholder = true;
         $db             = get_ionos_db_connection();
         if ($db) {
             $rows = $db->get_results(
-                "SELECT name, type, icon_url, pos_x, pos_y, lat, lon, rotation FROM obstacles WHERE active = 1 ORDER BY id ASC",
+                "SELECT name, type, icon_url,
+                        pos_x, pos_y,
+                        pos_x_l, pos_y_l,
+                        pos_x_p, pos_y_p,
+                        lat, lon, rotation
+                 FROM obstacles WHERE active = 1 ORDER BY id ASC",
                 ARRAY_A
             );
             if (!empty($rows)) {
@@ -346,11 +351,11 @@ if (!function_exists('wcr_sc_obstacles_map')) {
 
         if ($is_placeholder) {
             $obstacles = [
-                ['name' => 'Kicker 1',   'type' => 'kicker', 'icon_url' => '', 'pos_x' => 20, 'pos_y' => 35, 'lat' => 0, 'lon' => 0, 'rotation' => 0],
-                ['name' => 'Kicker 2',   'type' => 'kicker', 'icon_url' => '', 'pos_x' => 55, 'pos_y' => 25, 'lat' => 0, 'lon' => 0, 'rotation' => 15],
-                ['name' => 'Rail Links', 'type' => 'rail',   'icon_url' => '', 'pos_x' => 35, 'pos_y' => 60, 'lat' => 0, 'lon' => 0, 'rotation' => 45],
-                ['name' => 'Rail Mitte', 'type' => 'rail',   'icon_url' => '', 'pos_x' => 65, 'pos_y' => 55, 'lat' => 0, 'lon' => 0, 'rotation' => 0],
-                ['name' => 'Box',        'type' => 'box',    'icon_url' => '', 'pos_x' => 80, 'pos_y' => 40, 'lat' => 0, 'lon' => 0, 'rotation' => 0],
+                ['name'=>'Kicker 1',  'type'=>'kicker','icon_url'=>'','pos_x_l'=>20,'pos_y_l'=>35,'pos_x_p'=>20,'pos_y_p'=>35,'pos_x'=>20,'pos_y'=>35,'lat'=>0,'lon'=>0,'rotation'=>0],
+                ['name'=>'Kicker 2',  'type'=>'kicker','icon_url'=>'','pos_x_l'=>55,'pos_y_l'=>25,'pos_x_p'=>55,'pos_y_p'=>25,'pos_x'=>55,'pos_y'=>25,'lat'=>0,'lon'=>0,'rotation'=>15],
+                ['name'=>'Rail Links','type'=>'rail',  'icon_url'=>'','pos_x_l'=>35,'pos_y_l'=>60,'pos_x_p'=>35,'pos_y_p'=>60,'pos_x'=>35,'pos_y'=>60,'lat'=>0,'lon'=>0,'rotation'=>45],
+                ['name'=>'Rail Mitte','type'=>'rail',  'icon_url'=>'','pos_x_l'=>65,'pos_y_l'=>55,'pos_x_p'=>65,'pos_y_p'=>55,'pos_x'=>65,'pos_y'=>55,'lat'=>0,'lon'=>0,'rotation'=>0],
+                ['name'=>'Box',       'type'=>'box',   'icon_url'=>'','pos_x_l'=>80,'pos_y_l'=>40,'pos_x_p'=>80,'pos_y_p'=>40,'pos_x'=>80,'pos_y'=>40,'lat'=>0,'lon'=>0,'rotation'=>0],
             ];
         }
 
@@ -368,22 +373,32 @@ if (!function_exists('wcr_sc_obstacles_map')) {
         ob_start();
 
         echo '<div id="wcr-obstacles-map-wrap" class="' . esc_attr($wrap_class) . '" data-mode="' . esc_attr($mode) . '">';
-
-        // Stage (wird rotiert)
         echo '<div id="wcr-obstacles-stage" class="wcr-obstacles-stage">';
         echo '<div id="wcr-obstacles-map" data-api="' . esc_url($api_url) . '"></div>';
 
-        // ── PHP-Fallback Obstacles (nur pos_x/pos_y, kein lat/lon) ──
+        // ── PHP-Fallback: richtige Spalte je nach Mode, Fallback auf pos_x/pos_y ──
         foreach ($obstacles as $obs) {
             $lat = (float)($obs['lat'] ?? 0);
             $lon = (float)($obs['lon'] ?? 0);
             if ($lat != 0 || $lon != 0) continue; // Geo-Obstacles macht JS
 
-            $px    = (float)($obs['pos_x']    ?? 50) / 100 * $W;
-            $py    = (float)($obs['pos_y']    ?? 50) / 100 * $H;
-            $rot   = (float)($obs['rotation'] ?? 0);
-            $ico   = !empty($obs['icon_url']) ? esc_url($obs['icon_url']) : '';
-            $lbl   = esc_html($obs['name'] ?? '');
+            // Mode-abhängige Position wählen
+            if ($is_portrait) {
+                $raw_x = ($obs['pos_x_p'] !== null && $obs['pos_x_p'] !== '') ? $obs['pos_x_p'] : ($obs['pos_x'] ?? 50);
+                $raw_y = ($obs['pos_y_p'] !== null && $obs['pos_y_p'] !== '') ? $obs['pos_y_p'] : ($obs['pos_y'] ?? 50);
+            } else {
+                $raw_x = ($obs['pos_x_l'] !== null && $obs['pos_x_l'] !== '') ? $obs['pos_x_l'] : ($obs['pos_x'] ?? 50);
+                $raw_y = ($obs['pos_y_l'] !== null && $obs['pos_y_l'] !== '') ? $obs['pos_y_l'] : ($obs['pos_y'] ?? 50);
+            }
+
+            // Wenn kein Wert für diesen Mode → Obstacle nicht rendern
+            if ($raw_x === null || $raw_x === '') continue;
+
+            $px  = (float)$raw_x / 100 * $W;
+            $py  = (float)$raw_y / 100 * $H;
+            $rot = (float)($obs['rotation'] ?? 0);
+            $ico = !empty($obs['icon_url']) ? esc_url($obs['icon_url']) : '';
+            $lbl = esc_html($obs['name'] ?? '');
             $type  = strtolower(trim($obs['type'] ?? 'default'));
             $emoji = $type_icons[$type] ?? $type_icons['default'];
 
