@@ -1,0 +1,155 @@
+/*
+ * WCR Produkte Spotlight – 3-Produkt DS Card
+ * [wcr_produkte id1="X" id2="Y" id3="Z" titel="Unsere Empfehlungen"]
+ */
+
+.wcr-produkte-wrap {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    padding: 60px 80px;
+    box-sizing: border-box;
+    gap: 48px;
+    justify-content: center;
+}
+
+/* ── Header ── */
+.wcr-produkte-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.wcr-produkte-header-line {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(to right, transparent, var(--clr-green, #679467));
+    border-radius: 2px;
+}
+.wcr-produkte-header-line.right {
+    background: linear-gradient(to left, transparent, var(--clr-green, #679467));
+}
+
+.wcr-produkte-header-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--clr-text, #eee);
+    white-space: nowrap;
+}
+
+.wcr-produkte-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--clr-green, #679467);
+    box-shadow: 0 0 10px var(--clr-green, #679467);
+    flex-shrink: 0;
+}
+
+/* ── Grid ── */
+.wcr-produkte-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 48px;
+    flex: 1;
+    align-items: stretch;
+}
+
+/* ── Card ── */
+.wcr-produkte-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 56px 40px 52px;
+    border-radius: 24px;
+    background: rgba(10, 14, 24, 0.65);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5);
+    gap: 24px;
+    transition: box-shadow 0.3s ease;
+    min-height: 380px;
+}
+
+.wcr-produkte-card:hover {
+    box-shadow: 0 8px 60px rgba(103, 148, 103, 0.15);
+}
+
+/* Nummer-Badge oben */
+.wcr-produkte-num {
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--clr-text-muted, #7a8a8a);
+    text-transform: uppercase;
+    align-self: flex-start;
+}
+
+/* Produktname */
+.wcr-produkte-name {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: var(--clr-text, #eee);
+    text-align: center;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Trennlinie */
+.wcr-produkte-divider {
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.15), transparent);
+    border-radius: 1px;
+    flex-shrink: 0;
+}
+
+/* Preis */
+.wcr-produkte-preis {
+    font-size: 4.5rem;
+    font-weight: 900;
+    color: var(--clr-green, #679467);
+    text-shadow: 0 0 30px rgba(103, 148, 103, 0.4);
+    letter-spacing: 0.01em;
+    line-height: 1;
+    text-align: center;
+}
+
+.wcr-produkte-preis .wp-currency {
+    font-size: 2.2rem;
+    font-weight: 700;
+    vertical-align: super;
+    margin-left: 4px;
+    opacity: 0.85;
+}
+
+/* Menge / Einheit */
+.wcr-produkte-menge {
+    font-size: 1.1rem;
+    color: var(--clr-text-muted, #7a8a8a);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+/* Fehler-State */
+.wcr-produkte-card.is-error .wcr-produkte-name {
+    color: rgba(255, 59, 48, 0.7);
+    font-size: 1.4rem;
+}
+.wcr-produkte-card.is-error .wcr-produkte-preis {
+    display: none;
+}
