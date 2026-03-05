@@ -215,8 +215,28 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
+    // ── 🎬 Kino Films ──
+    register_rest_route('wakecamp/v1', '/kino', [
+        'methods'             => 'GET',
+        'callback'            => function() {
+            global $wpdb;
+            $table = $wpdb->prefix . 'wcr_kino';
+            $today = current_time('Y-m-d');
+            
+            $films = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, title, cover_url, date, sort_order
+                 FROM $table
+                 WHERE date >= %s
+                 ORDER BY date ASC, sort_order ASC",
+                $today
+            ), ARRAY_A);
+            
+            return rest_ensure_response($films ?: []);
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
     // ── Obstacles Map ──
-    // Liefert alle Positions-Spalten inkl. der mode-spezifischen pos_x_l/y_l und pos_x_p/y_p
     register_rest_route('wakecamp/v1', '/obstacles', [
         'methods'             => 'GET',
         'callback'            => function() {
