@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    WCR Obstacles Map – wcr-obstacles-map.js
-   PNG rotiert, Label bleibt horizontal
+   Label bleibt horizontal (Icon + Map-Rotation)
 ═══════════════════════════════════════════════════════ */
 (function () {
 
@@ -82,6 +82,9 @@
 
         setStageRotation(stage, DEFAULT_CFG.rot);
 
+        // ── Map-Rotation tracken ──
+        var mapRotation = 0;
+
         // ── Map-Config + Style laden ──
         var cfgUrl = getMapConfigUrl();
         if (cfgUrl) {
@@ -92,7 +95,11 @@
                     if (!cfg) return;
                     var lat=parseFloat(cfg.lat),lon=parseFloat(cfg.lon),zoom=parseFloat(cfg.zoom),rot=parseFloat(cfg.rot),style=cfg.style||DEFAULT_CFG.style;
                     if (isFinite(lat)&&isFinite(lon)&&isFinite(zoom)) map.setView([lat,lon],zoom);
-                    if (isFinite(rot)){setStageRotation(stage,rot);map.invalidateSize({animate:false});}
+                    if (isFinite(rot)){
+                        mapRotation = rot;
+                        setStageRotation(stage,rot);
+                        map.invalidateSize({animate:false});
+                    }
                     var sd=STYLES[style]||STYLES[DEFAULT_CFG.style];
                     L.tileLayer(sd.url,{attribution:sd.attr,maxZoom:21,detectRetina:true}).addTo(map);
                 })
@@ -149,8 +156,11 @@
                     }
                     iconHtml += '</div>';
                     
-                    // Label außerhalb → keine Rotation
-                    if (label) iconHtml += '<span style="font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em">'+label+'</span>';
+                    // Label mit Counter-Rotation (gegen Map-Rotation)
+                    if (label) {
+                        var counterRot = -mapRotation;
+                        iconHtml += '<span style="font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em;transform:rotate('+counterRot+'deg);">'+label+'</span>';
+                    }
                     iconHtml += '</div>';
                     
                     L.marker([lat,lon],{
@@ -199,11 +209,11 @@
                     }
                     d.appendChild(iconWrap);
                     
-                    // Label (nicht rotiert)
+                    // Label mit Counter-Rotation
                     if (label) {
                         var lblEl = document.createElement('span');
                         lblEl.textContent = label;
-                        lblEl.style.cssText = 'font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap';
+                        lblEl.style.cssText = 'font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap;transform:rotate('+ (-mapRotation) +'deg)';
                         d.appendChild(lblEl);
                     }
                     overlay.appendChild(d);
