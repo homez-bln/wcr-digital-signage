@@ -127,7 +127,13 @@
                     }
                     if (isFinite(rot)) {
                         setStageRotation(stage, rot);
-                        setTimeout(function () { map.invalidateSize(); }, 50);
+                        /*
+                         * invalidateSize nach Rotation:
+                         * Leaflet muss seinen internen Viewport-Center neu berechnen,
+                         * damit Tiles relativ zur (oversized) Container-Mitte korrekt
+                         * positioniert werden.
+                         */
+                        map.invalidateSize({ animate: false });
                     }
                 })
                 .catch(function () {});
@@ -198,7 +204,8 @@
         if (wrap) wrap.appendChild(switcher);
         else el.appendChild(switcher);
 
-        setTimeout(function () { map.invalidateSize(); }, 150);
+        /* invalidateSize: Leaflet muss wissen dass der Container 2210×2210 ist */
+        setTimeout(function () { map.invalidateSize({ animate: false }); }, 150);
 
         /* ── Obstacles rendern ── */
         function renderObstacles(list) {
