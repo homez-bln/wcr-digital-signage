@@ -139,6 +139,7 @@ function wcr_ds_load_leaflet() {
     }
 }
 
+// ── Shortcode-Registrierungen ─────────────────────────────────────
 add_shortcode( 'wcr_getraenke',    'wcr_sc_getraenke' );
 add_shortcode( 'wcr_softdrinks',   'wcr_sc_softdrinks' );
 add_shortcode( 'wcr_essen',        'wcr_sc_essen' );
@@ -146,7 +147,11 @@ add_shortcode( 'wcr_kaffee',       'wcr_sc_kaffee' );
 add_shortcode( 'wcr_windmap',      'wcr_sc_windmap' );
 add_shortcode( 'wcr_wetter',       'wcr_sc_wetter' );
 add_shortcode( 'wcr_starter_pack', 'wcr_sc_starter_pack' );
+add_shortcode( 'wcr_eis',          'wcr_sc_eis' );     // NEU
+add_shortcode( 'wcr_cable',        'wcr_sc_cable' );   // NEU
+add_shortcode( 'wcr_camping',      'wcr_sc_camping' ); // NEU
 
+// ── Bestehende Shortcode-Funktionen ──────────────────────────────
 function wcr_sc_getraenke( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
     $out .= '<script>document.addEventListener("DOMContentLoaded",function(){WCR.renderDrinksList("drinks-display",[{label:"Bier",types:["bier","weissbier","wein"]},{label:"Mix",types:["bier-mix","brlo","weinmix"]},{label:"Drinks",types:["longdrink","shots"]}],"/wp-json/wakecamp/v1/drinks");});</script>' . "\n";
@@ -187,4 +192,48 @@ function wcr_sc_starter_pack( $atts ) {
     wcr_ds_load_gsap();
     wp_enqueue_script( 'wcr-starter-pack', WCR_DS_URL . 'assets/js/wcr-starter-pack.js', array('gsap'), WCR_DS_VERSION, true );
     return '<div id="sp-display"></div>' . "\n";
+}
+
+// ── NEUE Shortcode-Funktionen ─────────────────────────────────────
+
+/**
+ * [wcr_eis] – Eiskarte aus Tabelle `ice`
+ * Typ-Spalten anpassen sobald DB-Typen bekannt (z.B. "softeis", "kugel", "becher")
+ */
+function wcr_sc_eis( $atts ) {
+    $out  = '<div id="drinks-display"></div>' . "\n";
+    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
+    $out .= 'WCR.renderDrinksList("drinks-display",';
+    $out .= '[{label:"Eis",types:["eis","softeis","kugel"]},{label:"Becher",types:["becher","waffel"]},{label:"Extras",types:["topping","extra"]}],';
+    $out .= '"/wp-json/wakecamp/v1/ice");';
+    $out .= '});</script>' . "\n";
+    return $out;
+}
+
+/**
+ * [wcr_cable] – Cablepark-Preise aus Tabelle `cable`
+ * Typ-Spalten anpassen sobald DB-Typen bekannt (z.B. "tag", "stunde", "kurs", "verleih")
+ */
+function wcr_sc_cable( $atts ) {
+    $out  = '<div id="drinks-display"></div>' . "\n";
+    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
+    $out .= 'WCR.renderDrinksList("drinks-display",';
+    $out .= '[{label:"Tickets",types:["tag","stunde","abend"]},{label:"Kurs",types:["kurs","schnupperkurs"]},{label:"Verleih",types:["verleih","board","weste"]}],';
+    $out .= '"/wp-json/wakecamp/v1/cable");';
+    $out .= '});</script>' . "\n";
+    return $out;
+}
+
+/**
+ * [wcr_camping] – Camping-Preise aus Tabelle `camping`
+ * Typ-Spalten anpassen sobald DB-Typen bekannt (z.B. "stellplatz", "zelt", "extras")
+ */
+function wcr_sc_camping( $atts ) {
+    $out  = '<div id="drinks-display"></div>' . "\n";
+    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
+    $out .= 'WCR.renderDrinksList("drinks-display",';
+    $out .= '[{label:"Stellplatz",types:["stellplatz","zelt","wohnmobil"]},{label:"Extras",types:["strom","dusche","extra"]}],';
+    $out .= '"/wp-json/wakecamp/v1/camping");';
+    $out .= '});</script>' . "\n";
+    return $out;
 }

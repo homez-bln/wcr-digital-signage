@@ -84,6 +84,105 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
+    // ── Alle Ice (Eiskarte) ──
+    register_rest_route('wakecamp/v1', '/ice', [
+        'methods'             => 'GET',
+        'callback'            => function() {
+            $db = get_ionos_db_connection();
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
+            return rest_ensure_response(
+                $db->get_results("SELECT nummer, produkt, typ, menge, preis, stock
+                                  FROM ice WHERE stock != 0 AND stock IS NOT NULL
+                                  ORDER BY typ, produkt", ARRAY_A) ?: []
+            );
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
+    // ── Ice nach Typ ──
+    register_rest_route('wakecamp/v1', '/ice/(?P<typ>[a-zA-Z0-9_-]+)', [
+        'methods'             => 'GET',
+        'callback'            => function($req) {
+            $db  = get_ionos_db_connection();
+            $typ = sanitize_text_field($req['typ']);
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
+            return rest_ensure_response(
+                $db->get_results($db->prepare(
+                    "SELECT nummer, produkt, typ, menge, preis, stock
+                     FROM ice WHERE typ = %s AND stock != 0 AND stock IS NOT NULL
+                     ORDER BY produkt", $typ
+                ), ARRAY_A) ?: []
+            );
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
+    // ── Alle Cable (Cablepark-Preise) ──
+    register_rest_route('wakecamp/v1', '/cable', [
+        'methods'             => 'GET',
+        'callback'            => function() {
+            $db = get_ionos_db_connection();
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
+            return rest_ensure_response(
+                $db->get_results("SELECT nummer, produkt, typ, menge, preis, stock
+                                  FROM cable WHERE stock != 0 AND stock IS NOT NULL
+                                  ORDER BY typ, produkt", ARRAY_A) ?: []
+            );
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
+    // ── Cable nach Typ ──
+    register_rest_route('wakecamp/v1', '/cable/(?P<typ>[a-zA-Z0-9_-]+)', [
+        'methods'             => 'GET',
+        'callback'            => function($req) {
+            $db  = get_ionos_db_connection();
+            $typ = sanitize_text_field($req['typ']);
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
+            return rest_ensure_response(
+                $db->get_results($db->prepare(
+                    "SELECT nummer, produkt, typ, menge, preis, stock
+                     FROM cable WHERE typ = %s AND stock != 0 AND stock IS NOT NULL
+                     ORDER BY produkt", $typ
+                ), ARRAY_A) ?: []
+            );
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
+    // ── Alle Camping ──
+    register_rest_route('wakecamp/v1', '/camping', [
+        'methods'             => 'GET',
+        'callback'            => function() {
+            $db = get_ionos_db_connection();
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
+            return rest_ensure_response(
+                $db->get_results("SELECT nummer, produkt, typ, menge, preis, stock
+                                  FROM camping WHERE stock != 0 AND stock IS NOT NULL
+                                  ORDER BY typ, produkt", ARRAY_A) ?: []
+            );
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
+    // ── Camping nach Typ ──
+    register_rest_route('wakecamp/v1', '/camping/(?P<typ>[a-zA-Z0-9_-]+)', [
+        'methods'             => 'GET',
+        'callback'            => function($req) {
+            $db  = get_ionos_db_connection();
+            $typ = sanitize_text_field($req['typ']);
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
+            return rest_ensure_response(
+                $db->get_results($db->prepare(
+                    "SELECT nummer, produkt, typ, menge, preis, stock
+                     FROM camping WHERE typ = %s AND stock != 0 AND stock IS NOT NULL
+                     ORDER BY produkt", $typ
+                ), ARRAY_A) ?: []
+            );
+        },
+        'permission_callback' => '__return_true',
+    ]);
+
     // ── Events ──
     register_rest_route('wakecamp/v1', '/events', [
         'methods'             => 'GET',
