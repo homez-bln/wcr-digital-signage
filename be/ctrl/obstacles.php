@@ -387,7 +387,11 @@ $maxRows = max(20, count($rows) + 3);
         target: 'mcp-map',
         layers: [
             new ol.layer.Tile({
-                source: new ol.source.OSM()
+                source: new ol.source.XYZ({
+                    url: 'https://{a-c}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+                    attributions: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+                    maxZoom: 21
+                })
             })
         ],
         view: view,
