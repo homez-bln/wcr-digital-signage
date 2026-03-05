@@ -68,10 +68,10 @@ if (!function_exists('wcr_enqueue_ds_styles')) {
             plugin_dir_url(dirname(__FILE__)) . 'assets/css/themes/wcr-ds-theme-' . $theme . '.css',
             ['wcr-ds-base'], '3.0.0');
 
-        // 3. Utils JS
+        // 3. Utils JS — mit Cache-Buster
         wp_enqueue_script('wcr-ds-utils',
             plugin_dir_url(dirname(__FILE__)) . 'assets/js/wcr-ds-utils.js',
-            [], '3.0.0', true);
+            [], '3.0.1', true);
     }
     add_action('wp_enqueue_scripts', 'wcr_enqueue_ds_styles', 10);
 }
