@@ -15,6 +15,7 @@ const WCR_DS_PAGE_SLUGS = [
     'starter-pack', 'wetter', 'windmap', 'tickets',
     'oeffnungszeiten-story', 'getraenke', 'soft',
     'essen', 'kaffee', 'obst', 'kino', 'sup', 'merch',
+    'eis', 'cable-list', 'camping-list',
 ];
 const WCR_DS_PORTRAIT_SLUGS = ['oeffnungszeiten-story'];
 const WCR_DS_THEMES         = ['glass', 'flat', 'aurora'];
