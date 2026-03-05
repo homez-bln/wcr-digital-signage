@@ -2,11 +2,11 @@
 /**
  * ctrl/obstacles.php — Obstacles-Verwaltung + Karten-Einstellungen
  *
- * Sektion 1: Karten-Config  → Zoom, Lat, Lon per Slider mit Live-Leaflet-Vorschau
- *            Speichert via POST /wp-json/wakecamp/v1/obstacles/map-config
+ * Sektion 1: Karten-Config  → Zoom, Lat, Lon per Slider
+ *            Speichert via PHP-cURL (be/api/save_map_config.php → WP REST)
  *
  * Sektion 2: Obstacle-Liste → Name, Typ, pos_x, pos_y, Rotation, Icon, Aktiv
- *            Speichert direkt per PDO in die IONOS-DB (obstacles-Tabelle)
+ *            Speichert direkt per PDO in die IONOS-DB
  */
 
 $PAGE_TITLE = 'Obstacles';
@@ -30,19 +30,62 @@ $db->exec("CREATE TABLE IF NOT EXISTS obstacles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-// ── Aktuelle Map-Config aus WP lesen (via REST-GET) ──
-$WP_API_BASE = 'https://www.wakecamp-ruhlsdorf.de/wp-json/wakecamp/v1';
-$mapCfg = ['lat' => 52.821428, 'lon' => 13.577100, 'zoom' => 17.9];
-try {
-    $raw = @file_get_contents($WP_API_BASE . '/obstacles/map-config');
-    if ($raw) {
-        $parsed = json_decode($raw, true);
-        if (is_array($parsed) && isset($parsed['lat'])) $mapCfg = $parsed;
+// ── cURL-Hilfsfunktion (wie in ds-settings.php) ──
+function obs_curl(string $url, ?array $postData = null): array {
+    $ch = curl_init($url);
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+    ];
+    if ($postData !== null) {
+        $opts[CURLOPT_POST]       = true;
+        $opts[CURLOPT_POSTFIELDS] = json_encode($postData);
     }
-} catch (Exception $e) {}
+    curl_setopt_array($ch, $opts);
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    return [
+        'ok'   => ($code === 200 && !$err),
+        'code' => $code,
+        'json' => json_decode($body ?: '', true),
+        'err'  => $err ?: ($code !== 200 ? "HTTP $code" : ''),
+    ];
+}
 
+$WP_API = 'https://wcr-webpage.de/wp-json/wakecamp/v1/obstacles/map-config';
+
+// ── Aktuelle Map-Config laden ──
+$mapCfg = ['lat' => 52.821428, 'lon' => 13.577100, 'zoom' => 17.9];
+$r = obs_curl($WP_API);
+if ($r['ok'] && is_array($r['json']) && isset($r['json']['lat'])) {
+    $mapCfg = $r['json'];
+}
+
+// ── Map-Config speichern (POST) ──
+$cfgMsg  = '';
+$cfgType = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
+    $lat  = (float)str_replace(',', '.', $_POST['map_lat']  ?? '');
+    $lon  = (float)str_replace(',', '.', $_POST['map_lon']  ?? '');
+    $zoom = (float)str_replace(',', '.', $_POST['map_zoom'] ?? '');
+
+    $r2 = obs_curl($WP_API, ['lat' => $lat, 'lon' => $lon, 'zoom' => $zoom]);
+    if ($r2['ok'] && !empty($r2['json']['ok'])) {
+        $cfgMsg  = '✓ Karten-Config gespeichert  (zoom ' . number_format($zoom,1) . ' · ' . $lat . ', ' . $lon . ')';
+        $cfgType = 'ok';
+        $mapCfg  = ['lat' => $lat, 'lon' => $lon, 'zoom' => $zoom];
+    } else {
+        $cfgMsg  = '✗ Fehler: ' . ($r2['err'] ?: 'Unbekannt');
+        $cfgType = 'error';
+    }
+}
+
+// ── Obstacles speichern (POST) ──
 $saveMsg = '';
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
     $ids     = $_POST['id'] ?? [];
     $names   = $_POST['name'] ?? [];
@@ -70,7 +113,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
         $n = trim((string)$n);
         $t = trim((string)($types[$idx] ?? ''));
         if ($n === '' && $t === '') continue;
-
         $id     = (int)($ids[$idx] ?? 0);
         $icon   = trim((string)($icons[$idx] ?? ''));
         $x      = (float)str_replace(',', '.', (string)($posXs[$idx] ?? 0));
@@ -79,7 +121,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
         if ($x < 0) $x = 0; if ($x > 100) $x = 100;
         if ($y < 0) $y = 0; if ($y > 100) $y = 100;
         $active = isset($actives[$idx]) ? 1 : 0;
-
         $stmtIns->execute([
             ':id'       => $id ?: null,
             ':name'     => $n,
@@ -92,7 +133,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
         ]);
         $count++;
     }
-
     $loc = strtok($_SERVER['REQUEST_URI'], '?');
     header('Location: ' . $loc . '?saved=' . $count);
     exit;
@@ -114,7 +154,6 @@ $maxRows = max(20, count($rows) + 3);
   <link rel="stylesheet" href="../inc/style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    /* ── Map-Config Panel ── */
     .mcp-card {
       background:#fff; border-radius:14px; box-shadow:0 8px 20px rgba(0,0,0,.05);
       padding:22px 24px; margin-bottom:28px; max-width:1180px;
@@ -150,8 +189,7 @@ $maxRows = max(20, count($rows) + 3);
     .sl-hint { font-size:10px; color:#aeaeb2; margin-top:3px; }
     #mcp-map {
       width:100%; height:320px;
-      border-radius:10px; border:1px solid #e5e5ea;
-      overflow:hidden;
+      border-radius:10px; border:1px solid #e5e5ea; overflow:hidden;
     }
     .mcp-actions { display:flex; gap:10px; margin-top:16px; }
     .mcp-hint-bar {
@@ -162,11 +200,10 @@ $maxRows = max(20, count($rows) + 3);
       font-family:monospace; font-size:11px; color:#0057d9;
       background:#f0f4ff; padding:2px 8px; border-radius:12px;
     }
-    #mcp-msg { font-size:12px; min-height:18px; margin-top:8px; }
-    #mcp-msg.ok  { color:#34c759; }
-    #mcp-msg.err { color:#ff3b30; }
+    .cfg-msg { font-size:12px; margin-top:10px; min-height:18px; padding:5px 10px; border-radius:6px; }
+    .cfg-msg.ok    { background:rgba(52,199,89,.10); color:#1a7a30; border:1px solid rgba(52,199,89,.25); }
+    .cfg-msg.error { background:rgba(255,59,48,.08); color:#c0392b; border:1px solid rgba(255,59,48,.2); }
 
-    /* ── Obstacles Tabelle (unverändert) ── */
     .obs-wrapper { max-width:1180px; }
     .obs-table { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,.04); }
     .obs-table th, .obs-table td { padding:6px 8px; border-bottom:1px solid #f0f0f3; text-align:left; vertical-align:middle; }
@@ -177,9 +214,9 @@ $maxRows = max(20, count($rows) + 3);
     .obs-id { width:40px; color:#9f9fa5; font-size:11px; }
     .obs-active { text-align:center; width:60px; }
     .obs-save-bar { margin-top:14px; display:flex; align-items:center; gap:12px; }
-    .btn-primary { padding:7px 16px; border-radius:999px; border:none; background:#0071e3; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+    .btn-primary   { padding:7px 16px; border-radius:999px; border:none; background:#0071e3; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
     .btn-secondary { padding:7px 16px; border-radius:999px; border:1px solid #d2d2d7; background:#fff; color:#1d1d1f; font-size:13px; cursor:pointer; }
-    .obs-msg { font-size:12px; color:#1d1d1f; margin-bottom:10px; }
+    .obs-msg  { font-size:12px; color:#1d1d1f; margin-bottom:10px; }
     .obs-hint { font-size:11px; color:#6e6e73; margin-top:4px; }
   </style>
 </head>
@@ -193,65 +230,75 @@ $maxRows = max(20, count($rows) + 3);
     <h1>🏄 <?= htmlspecialchars($PAGE_TITLE) ?></h1>
   </div>
 
-  <!-- ══════════════════════════════════════════════
-       SEKTION 1: KARTEN-CONFIG
-  ══════════════════════════════════════════════ -->
+  <!-- ═══════════ SEKTION 1: KARTEN-CONFIG ═══════════ -->
   <div class="mcp-card">
     <h2>🗺️ Karten-Einstellungen</h2>
-    <p class="sub">Zoom, Mittelpunkt und Position der Leaflet-Karte für <code>[wcr_obstacles_map]</code> einstellen.<br>
-    Karte ziehen oder klicken → Koordinaten übernehmen. Dann <strong>Karten-Config speichern</strong>.</p>
+    <p class="sub">
+      Zoom, Mittelpunkt für <code>[wcr_obstacles_map]</code>.<br>
+      Karte ziehen oder klicken → Koordinaten übernehmen → <strong>Karten-Config speichern</strong>.
+    </p>
 
-    <div class="mcp-grid">
+    <!-- Karten-Config wird als normales Form-POST über PHP cURL gespeichert -->
+    <form method="POST">
+      <input type="hidden" name="save_map_config" value="1">
 
-      <!-- Slider -->
-      <div class="mcp-sliders">
+      <div class="mcp-grid">
 
-        <div class="sl-row">
-          <label>🔍 Zoom <span id="lbl-zoom"><?= number_format((float)$mapCfg['zoom'], 1) ?></span></label>
-          <input type="range" id="sl-zoom"
-                 min="10" max="21" step="0.1"
-                 value="<?= esc_val($mapCfg['zoom']) ?>">
-          <div class="sl-hint">Empfohlen: 16–19 · Standard: 17.9</div>
+        <!-- Slider -->
+        <div class="mcp-sliders">
+
+          <div class="sl-row">
+            <label>🔍 Zoom <span id="lbl-zoom"><?= number_format((float)$mapCfg['zoom'], 1) ?></span></label>
+            <input type="range" id="sl-zoom" name="_zoom_vis"
+                   min="10" max="21" step="0.1"
+                   value="<?= hv($mapCfg['zoom']) ?>">
+            <input type="hidden" id="map_zoom" name="map_zoom" value="<?= hv($mapCfg['zoom']) ?>">
+            <div class="sl-hint">Empfohlen: 16–19 · Standard: 17.9</div>
+          </div>
+
+          <div class="sl-row">
+            <label>📍 Latitude (N–S) <span id="lbl-lat"><?= $mapCfg['lat'] ?></span></label>
+            <input type="range" id="sl-lat" name="_lat_vis"
+                   min="52.75" max="52.90" step="0.0001"
+                   value="<?= hv($mapCfg['lat']) ?>">
+            <input type="hidden" id="map_lat" name="map_lat" value="<?= hv($mapCfg['lat']) ?>">
+            <div class="sl-hint">Nord-Süd</div>
+          </div>
+
+          <div class="sl-row">
+            <label>📍 Longitude (W–O) <span id="lbl-lon"><?= $mapCfg['lon'] ?></span></label>
+            <input type="range" id="sl-lon" name="_lon_vis"
+                   min="13.50" max="13.65" step="0.0001"
+                   value="<?= hv($mapCfg['lon']) ?>">
+            <input type="hidden" id="map_lon" name="map_lon" value="<?= hv($mapCfg['lon']) ?>">
+            <div class="sl-hint">West-Ost</div>
+          </div>
+
+          <div class="mcp-actions">
+            <button type="button" id="btn-mcp-reset" class="btn-secondary">↩ Standard</button>
+            <button type="submit" class="btn-primary" style="flex:1;">💾 Karten-Config speichern</button>
+          </div>
         </div>
 
-        <div class="sl-row">
-          <label>📍 Latitude (N–S) <span id="lbl-lat"><?= $mapCfg['lat'] ?></span></label>
-          <input type="range" id="sl-lat"
-                 min="52.75" max="52.90" step="0.0001"
-                 value="<?= esc_val($mapCfg['lat']) ?>">
-          <div class="sl-hint">Nord-Süd-Verschiebung</div>
+        <!-- Live-Vorschau -->
+        <div>
+          <div id="mcp-map"></div>
+          <div class="mcp-hint-bar">
+            Klick auf Karte = neues Zentrum &nbsp;·&nbsp;
+            <span id="mcp-coords"><?= hv($mapCfg['lat']) ?>, <?= hv($mapCfg['lon']) ?> · zoom <?= hv($mapCfg['zoom']) ?></span>
+          </div>
         </div>
 
-        <div class="sl-row">
-          <label>📍 Longitude (W–O) <span id="lbl-lon"><?= $mapCfg['lon'] ?></span></label>
-          <input type="range" id="sl-lon"
-                 min="13.50" max="13.65" step="0.0001"
-                 value="<?= esc_val($mapCfg['lon']) ?>">
-          <div class="sl-hint">West-Ost-Verschiebung</div>
-        </div>
-
-        <div class="mcp-actions">
-          <button type="button" id="btn-mcp-reset" class="btn-secondary">↩ Standard</button>
-          <button type="button" id="btn-mcp-save"  class="btn-primary"  style="flex:1;">💾 Karten-Config speichern</button>
-        </div>
-        <div id="mcp-msg"></div>
       </div>
 
-      <!-- Live-Vorschau -->
-      <div>
-        <div id="mcp-map"></div>
-        <div class="mcp-hint-bar">
-          Klick auf Karte = neues Zentrum &nbsp;·&nbsp;
-          Aktuell: <span id="mcp-coords"><?= $mapCfg['lat'] ?>, <?= $mapCfg['lon'] ?> · zoom <?= $mapCfg['zoom'] ?></span>
-        </div>
-      </div>
+      <?php if ($cfgMsg): ?>
+        <div class="cfg-msg <?= $cfgType ?>"><?= htmlspecialchars($cfgMsg) ?></div>
+      <?php endif; ?>
 
-    </div>
+    </form>
   </div>
 
-  <!-- ══════════════════════════════════════════════
-       SEKTION 2: OBSTACLES-TABELLE
-  ══════════════════════════════════════════════ -->
+  <!-- ═══════════ SEKTION 2: OBSTACLES-TABELLE ═══════════ -->
   <p class="obs-hint">Verwalte bis zu 20 Obstacles. Position in Prozent (0–100) bezogen auf die Hintergrundkarte.</p>
 
   <?php if ($saveMsg): ?>
@@ -274,10 +321,7 @@ $maxRows = max(20, count($rows) + 3);
         </tr>
       </thead>
       <tbody>
-        <?php
-        $i = 0;
-        foreach ($rows as $row): $i++;
-        ?>
+        <?php $i = 0; foreach ($rows as $row): $i++; ?>
         <tr>
           <td class="obs-id">
             <input type="hidden" name="id[]" value="<?= (int)$row['id'] ?>">
@@ -290,7 +334,7 @@ $maxRows = max(20, count($rows) + 3);
           <td><input type="number" name="rotation[]" value="<?= htmlspecialchars($row['rotation']) ?>" step="1"></td>
           <td><input type="text"   name="icon_url[]" value="<?= htmlspecialchars($row['icon_url']) ?>"></td>
           <td class="obs-active">
-            <input type="checkbox" name="active[<?= $i - 1 ?>]" value="1" <?= $row['active'] ? 'checked' : '' ?>>
+            <input type="checkbox" name="active[<?= $i-1 ?>]" value="1" <?= $row['active'] ? 'checked' : '' ?>>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -320,12 +364,10 @@ $maxRows = max(20, count($rows) + 3);
 
 </div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
-    var DEFAULT = { lat: 52.821428, lon: 13.577100, zoom: 17.9 };
-    var REST    = 'https://www.wakecamp-ruhlsdorf.de/wp-json/wakecamp/v1/obstacles/map-config';
+    var DEF = { lat: 52.821428, lon: 13.577100, zoom: 17.9 };
 
     var slZ   = document.getElementById('sl-zoom');
     var slLat = document.getElementById('sl-lat');
@@ -334,9 +376,11 @@ $maxRows = max(20, count($rows) + 3);
     var lblLt = document.getElementById('lbl-lat');
     var lblLn = document.getElementById('lbl-lon');
     var cords = document.getElementById('mcp-coords');
-    var msg   = document.getElementById('mcp-msg');
+    var hZ    = document.getElementById('map_zoom');
+    var hLat  = document.getElementById('map_lat');
+    var hLon  = document.getElementById('map_lon');
 
-    /* ── Leaflet init ── */
+    /* Leaflet */
     var map = L.map('mcp-map', {
         zoomControl: true, dragging: true,
         scrollWheelZoom: true, zoomSnap: 0.1, zoomDelta: 0.1
@@ -347,13 +391,11 @@ $maxRows = max(20, count($rows) + 3);
         { attribution: '© OpenStreetMap © CARTO', maxZoom: 21 }
     ).addTo(map);
 
-    /* Fadenkreuz-Marker */
     var cross = L.divIcon({
         html: '<svg width="22" height="22" viewBox="0 0 22 22">'
             + '<line x1="11" y1="0" x2="11" y2="22" stroke="#0071e3" stroke-width="2"/>'
             + '<line x1="0" y1="11" x2="22" y2="11" stroke="#0071e3" stroke-width="2"/>'
-            + '<circle cx="11" cy="11" r="3" fill="#0071e3"/>'
-            + '</svg>',
+            + '<circle cx="11" cy="11" r="3" fill="#0071e3"/></svg>',
         className: '', iconAnchor: [11, 11]
     });
     var marker = L.marker(
@@ -361,22 +403,24 @@ $maxRows = max(20, count($rows) + 3);
         { icon: cross, interactive: false }
     ).addTo(map);
 
-    /* Gradient-Update */
     function grad(sl) {
         var p = (sl.value - sl.min) / (sl.max - sl.min) * 100;
         sl.style.background = 'linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';
     }
     [slZ, slLat, slLon].forEach(grad);
 
-    /* Slider → Karte */
     function sync() {
-        var z = parseFloat(slZ.value);
+        var z  = parseFloat(slZ.value);
         var lt = parseFloat(slLat.value);
         var ln = parseFloat(slLon.value);
         lblZ.textContent  = z.toFixed(1);
         lblLt.textContent = lt.toFixed(6);
         lblLn.textContent = ln.toFixed(6);
         cords.textContent = lt.toFixed(6) + ', ' + ln.toFixed(6) + '  zoom: ' + z.toFixed(1);
+        /* hidden inputs für den Form-POST aktualisieren */
+        hZ.value   = z.toFixed(1);
+        hLat.value = lt.toFixed(6);
+        hLon.value = ln.toFixed(6);
         map.setView([lt, ln], z);
         marker.setLatLng([lt, ln]);
         [slZ, slLat, slLon].forEach(grad);
@@ -404,43 +448,10 @@ $maxRows = max(20, count($rows) + 3);
 
     /* Reset */
     document.getElementById('btn-mcp-reset').addEventListener('click', function () {
-        slZ.value   = DEFAULT.zoom;
-        slLat.value = DEFAULT.lat;
-        slLon.value = DEFAULT.lon;
+        slZ.value   = DEF.zoom;
+        slLat.value = DEF.lat;
+        slLon.value = DEF.lon;
         sync();
-    });
-
-    /* Speichern */
-    document.getElementById('btn-mcp-save').addEventListener('click', function () {
-        var btn = this;
-        btn.disabled = true;
-        msg.className = '';
-        msg.textContent = 'Speichern …';
-
-        fetch(REST, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                lat:  parseFloat(slLat.value),
-                lon:  parseFloat(slLon.value),
-                zoom: parseFloat(slZ.value)
-            })
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-            if (d && d.ok) {
-                msg.textContent = '✓ Gespeichert! Zoom: ' + d.zoom + ' · ' + d.lat + ', ' + d.lon;
-                msg.className   = 'ok';
-            } else {
-                msg.textContent = '✗ Fehler: ' + (d.message || JSON.stringify(d));
-                msg.className   = 'err';
-            }
-        })
-        .catch(function(e){
-            msg.textContent = '✗ ' + e.message;
-            msg.className   = 'err';
-        })
-        .finally(function(){ btn.disabled = false; });
     });
 
     sync();
@@ -448,7 +459,7 @@ $maxRows = max(20, count($rows) + 3);
 </script>
 
 <?php
-function esc_val($v) { return htmlspecialchars((string)$v, ENT_QUOTES); }
+function hv($v) { return htmlspecialchars((string)$v, ENT_QUOTES); }
 ?>
 
 <?php include __DIR__ . '/../inc/debug.php'; ?>
