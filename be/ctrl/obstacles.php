@@ -11,7 +11,7 @@ wcr_require('view_media');
 
 $db = $pdo;
 
-// Tabelle erstellen (ohne lat/lon für Abwärtskompatibilität)
+// Tabelle erstellen
 $db->exec("CREATE TABLE IF NOT EXISTS obstacles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -25,10 +25,17 @@ $db->exec("CREATE TABLE IF NOT EXISTS obstacles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-// lat/lon Spalten nachträglich hinzufügen falls nicht vorhanden
-$db->exec("ALTER TABLE obstacles
-    ADD COLUMN IF NOT EXISTS lat DECIMAL(10,7) NULL DEFAULT NULL,
-    ADD COLUMN IF NOT EXISTS lon DECIMAL(10,7) NULL DEFAULT NULL;");
+// lat/lon Spalten nachträglich hinzufügen — MySQL 5.7 kompatibel (kein IF NOT EXISTS)
+$dbName = $pdo->query("SELECT DATABASE()")->fetchColumn();
+$cols = $pdo->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = " . $pdo->quote($dbName) . "
+    AND TABLE_NAME = 'obstacles'")->fetchAll(PDO::FETCH_COLUMN);
+if (!in_array('lat', $cols)) {
+    $pdo->exec("ALTER TABLE obstacles ADD COLUMN lat DECIMAL(10,7) NULL DEFAULT NULL");
+}
+if (!in_array('lon', $cols)) {
+    $pdo->exec("ALTER TABLE obstacles ADD COLUMN lon DECIMAL(10,7) NULL DEFAULT NULL");
+}
 
 define('OBS_WP_API',  'https://wcr-webpage.de/wp-json/wakecamp/v1/obstacles/map-config');
 define('OBS_SECRET',  'WCR_DS_2026');
@@ -266,7 +273,6 @@ $maxRows = max(20, count($rows) + 3);
       <input type="hidden" name="mode" value="<?= hv($mode) ?>">
       <input type="hidden" id="map_style" name="map_style" value="<?= hv($currentStyle) ?>">
 
-      <!-- Style-Switcher -->
       <div style="margin-bottom:16px;">
         <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">🎨 Kartenstil</div>
         <div class="style-switcher">
