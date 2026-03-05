@@ -173,3 +173,66 @@ add_action('admin_menu', function() {
         25
     );
 });
+
+/* ====================================================
+   AJAX Endpoints für Backend Control Panel
+   ==================================================== */
+
+// ── Liste alle Filme (inkl. vergangene) ──
+add_action('wp_ajax_wcr_kino_list', 'wcr_kino_ajax_list');
+add_action('wp_ajax_nopriv_wcr_kino_list', 'wcr_kino_ajax_list');
+function wcr_kino_ajax_list() {
+    if (($_POST['wcr_secret'] ?? '') !== 'WCR_DS_2026') {
+        wp_send_json_error('Nicht autorisiert', 403);
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'wcr_kino';
+    $films = $wpdb->get_results("SELECT * FROM $table ORDER BY date DESC, sort_order ASC", ARRAY_A);
+
+    wp_send_json_success($films);
+}
+
+// ── Film hinzufügen ──
+add_action('wp_ajax_wcr_kino_add', 'wcr_kino_ajax_add');
+add_action('wp_ajax_nopriv_wcr_kino_add', 'wcr_kino_ajax_add');
+function wcr_kino_ajax_add() {
+    if (($_POST['wcr_secret'] ?? '') !== 'WCR_DS_2026') {
+        wp_send_json_error('Nicht autorisiert', 403);
+    }
+
+    $title      = sanitize_text_field($_POST['title'] ?? '');
+    $cover_url  = esc_url_raw($_POST['cover_url'] ?? '');
+    $date       = sanitize_text_field($_POST['date'] ?? '');
+    $sort_order = intval($_POST['sort_order'] ?? 0);
+
+    if (!$title || !$cover_url || !$date) {
+        wp_send_json_error('Fehlende Pflichtfelder', 400);
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'wcr_kino';
+    $wpdb->insert($table, compact('title', 'cover_url', 'date', 'sort_order'));
+
+    wp_send_json_success(['id' => $wpdb->insert_id]);
+}
+
+// ── Film löschen ──
+add_action('wp_ajax_wcr_kino_delete', 'wcr_kino_ajax_delete');
+add_action('wp_ajax_nopriv_wcr_kino_delete', 'wcr_kino_ajax_delete');
+function wcr_kino_ajax_delete() {
+    if (($_POST['wcr_secret'] ?? '') !== 'WCR_DS_2026') {
+        wp_send_json_error('Nicht autorisiert', 403);
+    }
+
+    $id = intval($_POST['id'] ?? 0);
+    if (!$id) {
+        wp_send_json_error('Ungültige ID', 400);
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'wcr_kino';
+    $wpdb->delete($table, ['id' => $id]);
+
+    wp_send_json_success();
+}
