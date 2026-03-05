@@ -11,18 +11,24 @@ wcr_require('view_media');
 
 $db = $pdo;
 
+// Tabelle erstellen (ohne lat/lon für Abwärtskompatibilität)
 $db->exec("CREATE TABLE IF NOT EXISTS obstacles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50)  NOT NULL,
     icon_url VARCHAR(500) NULL,
-    pos_x DECIMAL(6,3) NOT NULL,
-    pos_y DECIMAL(6,3) NOT NULL,
+    pos_x DECIMAL(6,3) NOT NULL DEFAULT 0,
+    pos_y DECIMAL(6,3) NOT NULL DEFAULT 0,
     rotation DECIMAL(6,2) DEFAULT 0,
     active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+// lat/lon Spalten nachträglich hinzufügen falls nicht vorhanden
+$db->exec("ALTER TABLE obstacles
+    ADD COLUMN IF NOT EXISTS lat DECIMAL(10,7) NULL DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS lon DECIMAL(10,7) NULL DEFAULT NULL;");
 
 define('OBS_WP_API',  'https://wcr-webpage.de/wp-json/wakecamp/v1/obstacles/map-config');
 define('OBS_SECRET',  'WCR_DS_2026');
@@ -192,7 +198,6 @@ $maxRows = max(20, count($rows) + 3);
     .sl-row input[type=range] { width:100%; height:5px; -webkit-appearance:none; appearance:none; border-radius:4px; outline:none; cursor:pointer; }
     .sl-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#0071e3; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer; }
     .sl-hint { font-size:10px; color:#aeaeb2; margin-top:3px; }
-
     #mcp-map {
       width:100%; height:320px; border-radius:10px; border:1px solid #e5e5ea; overflow:hidden;
       position:relative; background:#f2ede4;
@@ -201,8 +206,6 @@ $maxRows = max(20, count($rows) + 3);
       position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
       width:22px; height:22px; pointer-events:none; z-index:10;
     }
-
-    /* Style-Switcher */
     .style-switcher { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
     .style-btn {
       display:flex; align-items:center; gap:6px;
@@ -214,7 +217,6 @@ $maxRows = max(20, count($rows) + 3);
     .style-btn:hover { border-color:#bdd9f5; background:#e8f5ff; color:#1a6fb5; }
     .style-btn.active { border-color:#0071e3; background:#e8f5ff; color:#0057d9; }
     .style-btn .style-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-
     .mcp-actions { display:flex; gap:10px; margin-top:16px; }
     .mcp-hint-bar { font-size:11px; color:#86868b; margin-top:8px; display:flex; align-items:center; gap:6px; }
     #mcp-coords { font-family:monospace; font-size:11px; color:#0057d9; background:#f0f4ff; padding:2px 8px; border-radius:12px; }
@@ -418,19 +420,19 @@ $maxRows = max(20, count($rows) + 3);
         'satellite-labels': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']
     };
 
-    var slZ   = document.getElementById('sl-zoom');
-    var slLat = document.getElementById('sl-lat');
-    var slLon = document.getElementById('sl-lon');
-    var slRot = document.getElementById('sl-rot');
-    var lblZ  = document.getElementById('lbl-zoom');
-    var lblLt = document.getElementById('lbl-lat');
-    var lblLn = document.getElementById('lbl-lon');
-    var lblR  = document.getElementById('lbl-rot');
-    var cords = document.getElementById('mcp-coords');
-    var hZ    = document.getElementById('map_zoom');
-    var hLat  = document.getElementById('map_lat');
-    var hLon  = document.getElementById('map_lon');
-    var hRot  = document.getElementById('map_rot');
+    var slZ    = document.getElementById('sl-zoom');
+    var slLat  = document.getElementById('sl-lat');
+    var slLon  = document.getElementById('sl-lon');
+    var slRot  = document.getElementById('sl-rot');
+    var lblZ   = document.getElementById('lbl-zoom');
+    var lblLt  = document.getElementById('lbl-lat');
+    var lblLn  = document.getElementById('lbl-lon');
+    var lblR   = document.getElementById('lbl-rot');
+    var cords  = document.getElementById('mcp-coords');
+    var hZ     = document.getElementById('map_zoom');
+    var hLat   = document.getElementById('map_lat');
+    var hLon   = document.getElementById('map_lon');
+    var hRot   = document.getElementById('map_rot');
     var hStyle = document.getElementById('map_style');
 
     function deg2rad(d){ return d * Math.PI / 180; }
@@ -449,8 +451,8 @@ $maxRows = max(20, count($rows) + 3);
     });
 
     var tileSource = new ol.source.XYZ({
-        urls:     TILE_URLS[currentStyleKey] || TILE_URLS['voyager-nolabels'],
-        maxZoom:  21
+        urls:    TILE_URLS[currentStyleKey] || TILE_URLS['voyager-nolabels'],
+        maxZoom: 21
     });
     var tileLayer = new ol.layer.Tile({
         preload:                Infinity,
@@ -466,7 +468,6 @@ $maxRows = max(20, count($rows) + 3);
         controls: [new ol.control.Zoom(), new ol.control.Rotate()]
     });
 
-    // Style wechseln
     window.setMapStyle = function(key) {
         var urls = TILE_URLS[key] || TILE_URLS['voyager-nolabels'];
         tileLayer.setSource(new ol.source.XYZ({ urls: urls, maxZoom: 21 }));
