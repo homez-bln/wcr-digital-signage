@@ -17,7 +17,21 @@ require_once WCR_DS_PATH . 'includes/instagram.php';
 require_once WCR_DS_PATH . 'includes/enqueue.php';
 require_once WCR_DS_PATH . 'includes/rest-api.php';
 require_once WCR_DS_PATH . 'includes/shortcodes.php';
-require_once WCR_DS_PATH . 'includes/screenshot.php'; // Self-Screenshot für Öffnungszeiten
+require_once WCR_DS_PATH . 'includes/screenshot.php';
+require_once WCR_DS_PATH . 'includes/admin-obstacles.php';  // Obstacles Admin
+
+/* ── Admin-Menü: Obstacles Karten-Einstellungen ── */
+add_action( 'admin_menu', function() {
+    add_menu_page(
+        'Obstacles Karte',           // Seitentitel
+        '🏄 Obstacles Karte',        // Menü-Label
+        'manage_options',            // Capability
+        'wcr-obstacles-map',         // Slug
+        'wcr_obstacles_admin_page',  // Callback
+        'dashicons-location',        // Icon
+        58                           // Position (nach Einstellungen)
+    );
+});
 
 function wcr_ds_defaults() {
     return array(

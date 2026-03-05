@@ -117,26 +117,13 @@ add_action('rest_api_init', function() {
     ]);
 
     // ── Obstacles Map ──
-    // Erwartete Tabelle in der externen IONOS-DB:
-    // CREATE TABLE obstacles (
-    //   id INT AUTO_INCREMENT PRIMARY KEY,
-    //   name VARCHAR(255) NOT NULL,
-    //   type VARCHAR(50)  NOT NULL,
-    //   icon_url VARCHAR(500) NULL,
-    //   pos_x DECIMAL(6,3) NOT NULL,   -- 0–100 = Prozent auf der Karte (X)
-    //   pos_y DECIMAL(6,3) NOT NULL,   -- 0–100 = Prozent auf der Karte (Y)
-    //   rotation DECIMAL(6,2) DEFAULT 0,
-    //   active TINYINT(1) DEFAULT 1,
-    //   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    //   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    // );
     register_rest_route('wakecamp/v1', '/obstacles', [
         'methods'             => 'GET',
         'callback'            => function() {
             $db = get_ionos_db_connection();
             if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
             $rows = $db->get_results(
-                "SELECT id, name, type, icon_url, pos_x, pos_y, rotation, active
+                "SELECT id, name, type, icon_url, pos_x, pos_y, lat, lon, rotation, active
                  FROM obstacles
                  WHERE active = 1
                  ORDER BY id ASC",
@@ -145,6 +132,48 @@ add_action('rest_api_init', function() {
             return rest_ensure_response($rows);
         },
         'permission_callback' => '__return_true',
+    ]);
+
+    // ── Obstacles Map-Config (Zoom + Center) ──
+    register_rest_route('wakecamp/v1', '/obstacles/map-config', [
+        [
+            'methods'             => 'GET',
+            'callback'            => function() {
+                return rest_ensure_response([
+                    'lat'  => (float) get_option('wcr_obstacles_map_lat',  52.821428251670844),
+                    'lon'  => (float) get_option('wcr_obstacles_map_lon',  13.5770999960116),
+                    'zoom' => (float) get_option('wcr_obstacles_map_zoom', 17.9),
+                ]);
+            },
+            'permission_callback' => '__return_true',
+        ],
+        [
+            'methods'             => 'POST',
+            'callback'            => function(WP_REST_Request $req) {
+                if (!current_user_can('manage_options')) {
+                    // Nonce-Fallback für direkte Aufrufe aus dem Admin
+                    $nonce = $req->get_header('X-WP-Nonce') ?: ($req->get_param('_wpnonce') ?? '');
+                    if (!wp_verify_nonce($nonce, 'wcr_obstacles_map_config')) {
+                        return new WP_Error('forbidden', 'Nicht autorisiert', ['status' => 403]);
+                    }
+                }
+                $lat  = (float) $req->get_param('lat');
+                $lon  = (float) $req->get_param('lon');
+                $zoom = (float) $req->get_param('zoom');
+
+                // Sanity-Checks
+                if ($lat < -90   || $lat > 90)   return new WP_Error('invalid', 'Lat ungültig',  ['status' => 400]);
+                if ($lon < -180  || $lon > 180)  return new WP_Error('invalid', 'Lon ungültig',  ['status' => 400]);
+                if ($zoom < 1    || $zoom > 21)  return new WP_Error('invalid', 'Zoom ungültig', ['status' => 400]);
+
+                update_option('wcr_obstacles_map_lat',  $lat);
+                update_option('wcr_obstacles_map_lon',  $lon);
+                update_option('wcr_obstacles_map_zoom', $zoom);
+
+                return rest_ensure_response(['ok' => true, 'lat' => $lat, 'lon' => $lon, 'zoom' => $zoom]);
+            },
+            'permission_callback' => '__return_true',
+        ],
     ]);
 
     // ── Single Item by ID ──
@@ -186,7 +215,6 @@ add_action('rest_api_init', function() {
         [
             'methods'             => 'GET',
             'callback'            => function() {
-                // Instagram-Optionen mitliefern
                 $ig_keys = [
                     'wcr_instagram_token', 'wcr_instagram_user_id', 'wcr_instagram_hashtags',
                     'wcr_instagram_excluded', 'wcr_instagram_location_label', 'wcr_instagram_cta_text',
@@ -197,9 +225,7 @@ add_action('rest_api_init', function() {
                     'wcr_instagram_cta_active', 'wcr_instagram_qr_active', 'wcr_instagram_weekly_best',
                 ];
                 $instagram = [];
-                foreach ($ig_keys as $k) {
-                    $instagram[$k] = get_option($k, '');
-                }
+                foreach ($ig_keys as $k) $instagram[$k] = get_option($k, '');
                 return rest_ensure_response([
                     'options'   => get_option('wcr_ds_options', []),
                     'theme'     => get_option('wcr_ds_theme', 'glass'),
@@ -214,18 +240,14 @@ add_action('rest_api_init', function() {
                 if (($req->get_param('wcr_secret') ?? '') !== WCR_DS_API_SECRET) {
                     return new WP_Error('forbidden', 'Nicht autorisiert', ['status' => 403]);
                 }
-
                 $action = $req->get_param('action') ?? '';
 
-                // ── DS Theme ──
                 if ($action === 'theme') {
                     $theme = sanitize_text_field($req->get_param('theme') ?? '');
                     if (in_array($theme, ['glass', 'flat', 'aurora'], true))
                         update_option('wcr_ds_theme', $theme);
                     return rest_ensure_response(['ok' => true, 'action' => $action]);
                 }
-
-                // ── DS Farben/Font speichern ──
                 if ($action === 'save') {
                     $opts = $req->get_param('options');
                     if (is_array($opts)) {
@@ -242,54 +264,27 @@ add_action('rest_api_init', function() {
                     }
                     return rest_ensure_response(['ok' => true, 'action' => $action]);
                 }
-
-                // ── DS Reset ──
                 if ($action === 'reset') {
                     update_option('wcr_ds_options', wcr_ds_defaults());
                     return rest_ensure_response(['ok' => true, 'action' => $action]);
                 }
-
-                // ── Instagram Settings speichern ──
                 if ($action === 'ig_save') {
                     $opts = $req->get_param('options');
-                    if (!is_array($opts)) {
-                        return new WP_Error('invalid_options', 'Keine Options übergeben', ['status' => 400]);
-                    }
-
-                    $str_keys = [
-                        'wcr_instagram_token', 'wcr_instagram_user_id', 'wcr_instagram_hashtags',
-                        'wcr_instagram_excluded', 'wcr_instagram_location_label', 'wcr_instagram_cta_text',
-                        'wcr_instagram_qr_url', 'wcr_instagram_max_age_unit',
-                    ];
-                    $int_keys = [
-                        'wcr_instagram_max_age_value', 'wcr_instagram_max_posts', 'wcr_instagram_refresh',
-                        'wcr_instagram_new_hours', 'wcr_instagram_video_pool', 'wcr_instagram_video_count',
-                        'wcr_instagram_min_likes',
-                    ];
-                    $bool_keys = [
-                        'wcr_instagram_use_tagged', 'wcr_instagram_use_hashtag', 'wcr_instagram_show_user',
-                        'wcr_instagram_cta_active', 'wcr_instagram_qr_active', 'wcr_instagram_weekly_best',
-                    ];
-
-                    foreach ($str_keys as $k) {
-                        if (array_key_exists($k, $opts))
-                            update_option($k, sanitize_textarea_field((string)$opts[$k]));
-                    }
-                    foreach ($int_keys as $k) {
-                        if (array_key_exists($k, $opts))
-                            update_option($k, (int)$opts[$k]);
-                    }
-                    foreach ($bool_keys as $k) {
-                        if (array_key_exists($k, $opts))
-                            update_option($k, (int)(bool)$opts[$k]);
-                    }
-
-                    // Cache leeren
+                    if (!is_array($opts)) return new WP_Error('invalid_options', 'Keine Options übergeben', ['status' => 400]);
+                    $str_keys  = ['wcr_instagram_token','wcr_instagram_user_id','wcr_instagram_hashtags',
+                                  'wcr_instagram_excluded','wcr_instagram_location_label','wcr_instagram_cta_text',
+                                  'wcr_instagram_qr_url','wcr_instagram_max_age_unit'];
+                    $int_keys  = ['wcr_instagram_max_age_value','wcr_instagram_max_posts','wcr_instagram_refresh',
+                                  'wcr_instagram_new_hours','wcr_instagram_video_pool','wcr_instagram_video_count',
+                                  'wcr_instagram_min_likes'];
+                    $bool_keys = ['wcr_instagram_use_tagged','wcr_instagram_use_hashtag','wcr_instagram_show_user',
+                                  'wcr_instagram_cta_active','wcr_instagram_qr_active','wcr_instagram_weekly_best'];
+                    foreach ($str_keys  as $k) { if (array_key_exists($k,$opts)) update_option($k, sanitize_textarea_field((string)$opts[$k])); }
+                    foreach ($int_keys  as $k) { if (array_key_exists($k,$opts)) update_option($k, (int)$opts[$k]); }
+                    foreach ($bool_keys as $k) { if (array_key_exists($k,$opts)) update_option($k, (int)(bool)$opts[$k]); }
                     delete_transient('wcr_instagram_posts');
-
                     return rest_ensure_response(['ok' => true, 'action' => 'ig_save']);
                 }
-
                 return new WP_Error('invalid_action', 'Unbekannte Action', ['status' => 400]);
             },
             'permission_callback' => '__return_true',
@@ -302,7 +297,6 @@ add_action('rest_api_init', function() {
         'callback'            => fn() => rest_ensure_response(WCR_Instagram::get_posts()),
         'permission_callback' => '__return_true',
     ]);
-
     register_rest_route('wakecamp/v1', '/instagram/videos', [
         'methods'             => 'GET',
         'callback'            => fn() => rest_ensure_response(WCR_Instagram::get_videos()),
