@@ -82,6 +82,28 @@
 
         var mode = getMode(wrap);
 
+        /* ── Overlay-Div über der Leaflet-Karte ──
+           Leaflet belegt z-index 200–650 intern.
+           Wir legen ein absolutes Div darüber (z-index:1000)
+           das genau die Größe des Karten-Containers hat. */
+        var mapParent = el.parentNode;
+        if (mapParent && mapParent.style.position !== 'absolute' && mapParent.style.position !== 'relative') {
+            mapParent.style.position = 'relative';
+        }
+        var overlay = document.createElement('div');
+        overlay.id = 'wcr-obstacles-overlay';
+        overlay.style.cssText = [
+            'position:absolute',
+            'top:0', 'left:0',
+            'width:' + W + 'px',
+            'height:' + H + 'px',
+            'z-index:1000',
+            'pointer-events:none',
+            'overflow:visible'
+        ].join(';');
+        // Overlay direkt nach dem Karten-Element einfügen
+        el.insertAdjacentElement('afterend', overlay);
+
         /* ── Leaflet Map ── */
         var map = L.map(el, {
             zoomControl:        false,
@@ -118,7 +140,6 @@
                         map.invalidateSize({ animate: false });
                     }
 
-                    // Tile-Layer mit gespeichertem Style laden
                     var styleDef = STYLES[style] || STYLES[DEFAULT_CFG.style];
                     L.tileLayer(styleDef.url, {
                         attribution:  styleDef.attr,
@@ -127,12 +148,10 @@
                     }).addTo(map);
                 })
                 .catch(function () {
-                    // Fallback: Standard-Style
                     var def = STYLES[DEFAULT_CFG.style];
                     L.tileLayer(def.url, { attribution: def.attr, maxZoom: 21, detectRetina: true }).addTo(map);
                 });
         } else {
-            // Kein cfgUrl: direkt Standard-Style laden
             var def = STYLES[DEFAULT_CFG.style];
             L.tileLayer(def.url, { attribution: def.attr, maxZoom: 21, detectRetina: true }).addTo(map);
         }
@@ -153,6 +172,7 @@
                 var ico   = o.icon_url || '';
 
                 if (lat !== 0 && lon !== 0) {
+                    // ── Leaflet Marker (Geo-Koordinaten) ──
                     var iconHtml = '<div style="transform:rotate(' + rot + 'deg);display:flex;flex-direction:column;align-items:center;gap:4px;">';
                     if (ico) {
                         iconHtml += '<img src="' + ico + '" style="width:' + ICON_SIZE + 'px;height:' + ICON_SIZE + 'px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))"/>';
@@ -171,7 +191,7 @@
                     L.marker([lat, lon], { icon: divIcon }).addTo(map);
 
                 } else if (px !== 0 || py !== 0) {
-                    var container = stage || wrap || el;
+                    // ── Pixel-Position über Overlay (immer über der Karte) ──
                     var d = document.createElement('div');
                     d.className = 'wcr-obstacle';
                     d.style.cssText = [
@@ -179,7 +199,6 @@
                         'left:' + (px / 100 * W) + 'px',
                         'top:'  + (py / 100 * H) + 'px',
                         'transform:translate(-50%,-50%)' + (rot ? ' rotate(' + rot + 'deg)' : ''),
-                        'z-index:500',
                         'display:flex',
                         'flex-direction:column',
                         'align-items:center',
@@ -193,6 +212,8 @@
                         iconDiv.style.width           = ICON_SIZE + 'px';
                         iconDiv.style.height          = ICON_SIZE + 'px';
                         iconDiv.style.backgroundSize  = 'contain';
+                        iconDiv.style.backgroundRepeat = 'no-repeat';
+                        iconDiv.style.backgroundPosition = 'center';
                     } else {
                         iconDiv.textContent = emoji;
                     }
@@ -203,7 +224,8 @@
                         lblEl.style.cssText = 'font-size:' + LBL_SIZE + ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap';
                         d.appendChild(lblEl);
                     }
-                    container.appendChild(d);
+                    // In den Overlay einhängen — nicht in stage/wrap!
+                    overlay.appendChild(d);
                 }
             });
         }
@@ -213,8 +235,7 @@
                 .then(function (r) { return r.ok ? r.json() : []; })
                 .then(function (data) {
                     if (!Array.isArray(data) || data.length === 0) return;
-                    var container = stage || wrap || el;
-                    container.querySelectorAll('.wcr-obstacle').forEach(function (n) { n.remove(); });
+                    overlay.querySelectorAll('.wcr-obstacle').forEach(function (n) { n.remove(); });
                     var hint = (wrap || el).querySelector('.wcr-obstacles-placeholder-hint');
                     if (hint) hint.remove();
                     renderObstacles(data);
