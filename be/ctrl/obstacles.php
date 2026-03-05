@@ -421,13 +421,20 @@ $maxRows = max(5, count($rows) + 3);
         sl.style.background='linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';
     }
 
+    // ── Helper: set value + trigger event ──
+    function setInputValue(input, val) {
+        input.value = val;
+        input.dispatchEvent(new Event('input', {bubbles:true}));
+        input.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+
     // ── Slider → Map (ohne Loop) ──
     function syncMapFromSliders(){
         isUpdatingFromSlider = true;
         var z=parseFloat(slZ.value), lat=parseFloat(slLat.value), lon=parseFloat(slLon.value);
         lblZ.textContent=z.toFixed(1); lblLt.textContent=lat.toFixed(6); lblLn.textContent=lon.toFixed(6);
-        lblR.textContent=parseFloat(slRot.value||'0').toFixed(1)+'\u00b0';
-        coords.textContent=lat.toFixed(6)+', '+lon.toFixed(6)+' \u00b7 zoom '+z.toFixed(1);
+        lblR.textContent=parseFloat(slRot.value||'0').toFixed(1)+'°';
+        coords.textContent=lat.toFixed(6)+', '+lon.toFixed(6)+' · zoom '+z.toFixed(1);
         hZ.value=z.toFixed(1); hLat.value=lat.toFixed(6); hLon.value=lon.toFixed(6); hRot.value=parseFloat(slRot.value||'0').toFixed(1);
         map.setView([lat,lon],z,{animate:false});
         crossMarker.setLatLng([lat,lon]);
@@ -477,8 +484,10 @@ $maxRows = max(5, count($rows) + 3);
             var rot  = parseFloat(row.querySelector('input[name="rotation[]"]').value)||0;
             var mk = L.marker([lat,lon],{ icon:makeObsIcon(name,type,rot), draggable:true }).addTo(map);
             mk.on('dragend', function(e){
-                row.querySelector('.obs-lat').value = e.target.getLatLng().lat.toFixed(6);
-                row.querySelector('.obs-lon').value = e.target.getLatLng().lng.toFixed(6);
+                var latInput = row.querySelector('.obs-lat');
+                var lonInput = row.querySelector('.obs-lon');
+                setInputValue(latInput, e.target.getLatLng().lat.toFixed(6));
+                setInputValue(lonInput, e.target.getLatLng().lng.toFixed(6));
             });
             mk.on('click', function(e){ L.DomEvent.stopPropagation(e); setActiveRow(idx); });
             obsMarkers[idx] = mk;
@@ -504,13 +513,11 @@ $maxRows = max(5, count($rows) + 3);
             if (e.target.tagName==='INPUT' || e.target.tagName==='TD') return;
             setActiveRow(idx);
         });
-        // Klick auf TD (nicht input) = aktivieren
         row.querySelectorAll('td').forEach(function(td){
             td.addEventListener('click', function(e){
                 if (e.target.tagName!=='INPUT') setActiveRow(idx);
             });
         });
-        // lat/lon Änderung = Marker neu rendern
         row.querySelector('.obs-lat').addEventListener('change', renderObsMarkers);
         row.querySelector('.obs-lon').addEventListener('change', renderObsMarkers);
     });
@@ -522,8 +529,10 @@ $maxRows = max(5, count($rows) + 3);
             if (!row) return;
             var lat = e.latlng.lat.toFixed(6);
             var lon = e.latlng.lng.toFixed(6);
-            row.querySelector('.obs-lat').value = lat;
-            row.querySelector('.obs-lon').value = lon;
+            var latInput = row.querySelector('.obs-lat');
+            var lonInput = row.querySelector('.obs-lon');
+            setInputValue(latInput, lat);
+            setInputValue(lonInput, lon);
             var name = row.querySelector('input[name="name[]"]').value || 'Obstacle';
             coords.innerHTML = '<strong style="color:#10b981">✅ '+name+'</strong> → '+lat+', '+lon;
             renderObsMarkers();
