@@ -53,9 +53,15 @@ function obs_curl(string $url, ?array $postData = null): array {
     ];
 }
 
-// ── Aktuelle Map-Config laden ──
+// ── Mode (Portrait/Landscape) ──
+$mode = $_POST['mode'] ?? ($_GET['mode'] ?? 'landscape');
+$mode = strtolower(trim((string)$mode));
+if (!in_array($mode, ['landscape', 'portrait'], true)) $mode = 'landscape';
+$modeLabel = ($mode === 'portrait') ? 'Portrait (1080×1920)' : 'Landscape (1920×1080)';
+
+// ── Aktuelle Map-Config laden (mode-spezifisch) ──
 $mapCfg = ['lat' => 52.821428, 'lon' => 13.577100, 'zoom' => 17.9];
-$r = obs_curl(OBS_WP_API);
+$r = obs_curl(OBS_WP_API . '?mode=' . rawurlencode($mode));
 if ($r['ok'] && is_array($r['json']) && isset($r['json']['lat'])) {
     $mapCfg = $r['json'];
 }
@@ -69,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
     $zoom = (float)str_replace(',', '.', $_POST['map_zoom'] ?? '');
 
     $r2 = obs_curl(OBS_WP_API, [
+        'mode'       => $mode,
         'lat'        => $lat,
         'lon'        => $lon,
         'zoom'       => $zoom,
@@ -76,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
     ]);
 
     if ($r2['ok'] && !empty($r2['json']['ok'])) {
-        $cfgMsg  = '✓ Karten-Config gespeichert (zoom ' . number_format($zoom, 1) . ' · ' . $lat . ', ' . $lon . ')';
+        $cfgMsg  = '✓ Karten-Config gespeichert (' . $mode . ', zoom ' . number_format($zoom, 1) . ' · ' . $lat . ', ' . $lon . ')';
         $cfgType = 'ok';
         $mapCfg  = ['lat' => $lat, 'lon' => $lon, 'zoom' => $zoom];
     } else {
@@ -136,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
         $count++;
     }
     $loc = strtok($_SERVER['REQUEST_URI'], '?');
-    header('Location: ' . $loc . '?saved=' . $count);
+    header('Location: ' . $loc . '?saved=' . $count . '&mode=' . rawurlencode($mode));
     exit;
 }
 
@@ -188,6 +195,7 @@ $maxRows = max(20, count($rows) + 3);
     .obs-save-bar { margin-top:14px; display:flex; align-items:center; gap:12px; }
     .btn-primary   { padding:7px 16px; border-radius:999px; border:none; background:#0071e3; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
     .btn-secondary { padding:7px 16px; border-radius:999px; border:1px solid #d2d2d7; background:#fff; color:#1d1d1f; font-size:13px; cursor:pointer; }
+    .btn-secondary.is-active { background:#f0f4ff; border-color:#bfd7ff; color:#0057d9; }
     .obs-msg  { font-size:12px; color:#1d1d1f; margin-bottom:10px; }
     .obs-hint { font-size:11px; color:#6e6e73; margin-top:4px; }
   </style>
@@ -205,10 +213,17 @@ $maxRows = max(20, count($rows) + 3);
   <!-- SEKTION 1: KARTEN-CONFIG -->
   <div class="mcp-card">
     <h2>🗺️ Karten-Einstellungen</h2>
-    <p class="sub">Zoom + Mittelpunkt für <code>[wcr_obstacles_map]</code>. Karte ziehen/klicken → <strong>Karten-Config speichern</strong>.</p>
+    <p class="sub">Aktuell: <strong><?= htmlspecialchars($modeLabel) ?></strong> · Zoom + Mittelpunkt für <code>[wcr_obstacles_map mode=&quot;<?= htmlspecialchars($mode) ?>&quot;]</code>.</p>
 
-    <form method="POST">
+    <div class="mcp-actions" style="margin-top:0;">
+      <?php $self = strtok($_SERVER['REQUEST_URI'], '?'); ?>
+      <a class="btn-secondary <?= $mode === 'landscape' ? 'is-active' : '' ?>" href="<?= htmlspecialchars($self) ?>?mode=landscape">Landscape</a>
+      <a class="btn-secondary <?= $mode === 'portrait' ? 'is-active' : '' ?>" href="<?= htmlspecialchars($self) ?>?mode=portrait">Portrait</a>
+    </div>
+
+    <form method="POST" style="margin-top:16px;">
       <input type="hidden" name="save_map_config" value="1">
+      <input type="hidden" name="mode" value="<?= hv($mode) ?>">
 
       <div class="mcp-grid">
         <div class="mcp-sliders">
@@ -262,6 +277,7 @@ $maxRows = max(20, count($rows) + 3);
 
   <form method="POST">
     <input type="hidden" name="save_obstacles" value="1">
+    <input type="hidden" name="mode" value="<?= hv($mode) ?>">
     <table class="obs-table">
       <thead>
         <tr>
