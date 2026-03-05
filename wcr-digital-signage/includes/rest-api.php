@@ -233,7 +233,7 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
-    // ── Obstacles Map-Config (Zoom + Center + Rotation) ──
+    // ── Obstacles Map-Config (Zoom + Center + Rotation + Style) ──
     register_rest_route('wakecamp/v1', '/obstacles/map-config', [
         [
             'methods'             => 'GET',
@@ -241,33 +241,41 @@ add_action('rest_api_init', function() {
                 $mode = strtolower(sanitize_text_field($req->get_param('mode') ?? 'landscape'));
                 if (!in_array($mode, ['landscape', 'portrait'], true)) $mode = 'landscape';
 
-                $def_lat  = 52.821428251670844;
-                $def_lon  = 13.5770999960116;
-                $def_zoom = 17.9;
-                $def_rot  = 0.0;
+                $def_lat   = 52.821428251670844;
+                $def_lon   = 13.5770999960116;
+                $def_zoom  = 17.9;
+                $def_rot   = 0.0;
+                $def_style = 'voyager-nolabels';
 
-                $lat_key  = 'wcr_obstacles_map_lat_'  . $mode;
-                $lon_key  = 'wcr_obstacles_map_lon_'  . $mode;
-                $zoom_key = 'wcr_obstacles_map_zoom_' . $mode;
-                $rot_key  = 'wcr_obstacles_map_rot_'  . $mode;
+                $lat_key   = 'wcr_obstacles_map_lat_'   . $mode;
+                $lon_key   = 'wcr_obstacles_map_lon_'   . $mode;
+                $zoom_key  = 'wcr_obstacles_map_zoom_'  . $mode;
+                $rot_key   = 'wcr_obstacles_map_rot_'   . $mode;
+                $style_key = 'wcr_obstacles_map_style_' . $mode;
 
-                $lat  = get_option($lat_key,  null);
-                $lon  = get_option($lon_key,  null);
-                $zoom = get_option($zoom_key, null);
-                $rot  = get_option($rot_key,  null);
+                $lat   = get_option($lat_key,   null);
+                $lon   = get_option($lon_key,   null);
+                $zoom  = get_option($zoom_key,  null);
+                $rot   = get_option($rot_key,   null);
+                $style = get_option($style_key, null);
 
-                // Fallback: alte Keys (für bestehende Installationen)
+                // Fallback: alte Keys
                 if (!is_numeric($lat))  $lat  = get_option('wcr_obstacles_map_lat',  $def_lat);
                 if (!is_numeric($lon))  $lon  = get_option('wcr_obstacles_map_lon',  $def_lon);
                 if (!is_numeric($zoom)) $zoom = get_option('wcr_obstacles_map_zoom', $def_zoom);
                 if (!is_numeric($rot))  $rot  = get_option('wcr_obstacles_map_rot',  $def_rot);
+                if (empty($style))      $style = $def_style;
+
+                $valid_styles = ['voyager-nolabels', 'satellite', 'dark', 'light', 'satellite-labels'];
+                if (!in_array($style, $valid_styles, true)) $style = $def_style;
 
                 return rest_ensure_response([
-                    'mode' => $mode,
-                    'lat'  => (float)$lat,
-                    'lon'  => (float)$lon,
-                    'zoom' => (float)$zoom,
-                    'rot'  => (float)$rot,
+                    'mode'  => $mode,
+                    'lat'   => (float)$lat,
+                    'lon'   => (float)$lon,
+                    'zoom'  => (float)$zoom,
+                    'rot'   => (float)$rot,
+                    'style' => $style,
                 ]);
             },
             'permission_callback' => '__return_true',
@@ -275,7 +283,6 @@ add_action('rest_api_init', function() {
         [
             'methods'             => 'POST',
             'callback'            => function(WP_REST_Request $req) {
-                // Auth: wcr_secret (wie /ds-settings) ODER eingeloggter Admin mit gültigem Nonce
                 $secret = $req->get_param('wcr_secret') ?? '';
                 $nonce  = $req->get_header('X-WP-Nonce') ?: ($req->get_param('_wpnonce') ?? '');
 
@@ -290,22 +297,26 @@ add_action('rest_api_init', function() {
                 $mode = strtolower(sanitize_text_field($req->get_param('mode') ?? 'landscape'));
                 if (!in_array($mode, ['landscape', 'portrait'], true)) $mode = 'landscape';
 
-                $lat  = (float) $req->get_param('lat');
-                $lon  = (float) $req->get_param('lon');
-                $zoom = (float) $req->get_param('zoom');
-                $rot  = (float) ($req->get_param('rot') ?? 0);
+                $lat   = (float) $req->get_param('lat');
+                $lon   = (float) $req->get_param('lon');
+                $zoom  = (float) $req->get_param('zoom');
+                $rot   = (float) ($req->get_param('rot') ?? 0);
+                $style = sanitize_text_field($req->get_param('style') ?? 'voyager-nolabels');
+
+                $valid_styles = ['voyager-nolabels', 'satellite', 'dark', 'light', 'satellite-labels'];
+                if (!in_array($style, $valid_styles, true)) $style = 'voyager-nolabels';
 
                 if ($lat < -90  || $lat > 90)  return new WP_Error('invalid', 'Lat ungültig',  ['status' => 400]);
                 if ($lon < -180 || $lon > 180) return new WP_Error('invalid', 'Lon ungültig',  ['status' => 400]);
                 if ($zoom < 1   || $zoom > 21) return new WP_Error('invalid', 'Zoom ungültig', ['status' => 400]);
                 if ($rot < -360 || $rot > 360) return new WP_Error('invalid', 'Rotation ungültig', ['status' => 400]);
 
-                update_option('wcr_obstacles_map_lat_'  . $mode, $lat);
-                update_option('wcr_obstacles_map_lon_'  . $mode, $lon);
-                update_option('wcr_obstacles_map_zoom_' . $mode, $zoom);
-                update_option('wcr_obstacles_map_rot_'  . $mode, $rot);
+                update_option('wcr_obstacles_map_lat_'   . $mode, $lat);
+                update_option('wcr_obstacles_map_lon_'   . $mode, $lon);
+                update_option('wcr_obstacles_map_zoom_'  . $mode, $zoom);
+                update_option('wcr_obstacles_map_rot_'   . $mode, $rot);
+                update_option('wcr_obstacles_map_style_' . $mode, $style);
 
-                // Backward-Compat: alte Keys weiter pflegen (landscape = historischer Default)
                 if ($mode === 'landscape') {
                     update_option('wcr_obstacles_map_lat',  $lat);
                     update_option('wcr_obstacles_map_lon',  $lon);
@@ -314,12 +325,13 @@ add_action('rest_api_init', function() {
                 }
 
                 return rest_ensure_response([
-                    'ok'   => true,
-                    'mode' => $mode,
-                    'lat'  => $lat,
-                    'lon'  => $lon,
-                    'zoom' => $zoom,
-                    'rot'  => $rot,
+                    'ok'    => true,
+                    'mode'  => $mode,
+                    'lat'   => $lat,
+                    'lon'   => $lon,
+                    'zoom'  => $zoom,
+                    'rot'   => $rot,
+                    'style' => $style,
                 ]);
             },
             'permission_callback' => '__return_true',

@@ -1,51 +1,40 @@
 /* ═══════════════════════════════════════════════════════
    WCR Obstacles Map – wcr-obstacles-map.js
    Unterstützt Portrait (1080×1920) und Landscape (1920×1080)
-   Wird via data-mode="portrait|landscape" gesteuert
+   Kartenstil wird via REST-API geladen (im BE einstellbar)
 ═══════════════════════════════════════════════════════ */
 (function () {
 
     const DEFAULT_CFG = {
-        lat:  52.821428251670844,
-        lon:  13.5770999960116,
-        zoom: 17.9,
-        rot:  0
+        lat:   52.821428251670844,
+        lon:   13.5770999960116,
+        zoom:  17.9,
+        rot:   0,
+        style: 'voyager-nolabels'
     };
 
-    const STYLES = [
-        {
-            id:    'voyager-nolabels',
-            label: '🗺️ OSM (clean)',
-            url:   'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
-            attr:  '© OpenStreetMap © CARTO'
+    const STYLES = {
+        'voyager-nolabels': {
+            url:  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+            attr: '© OpenStreetMap © CARTO'
         },
-        {
-            id:    'satellite',
-            label: '🛰️ Satellite',
-            url:   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            attr:  'Tiles © Esri'
+        'satellite': {
+            url:  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            attr: 'Tiles © Esri'
         },
-        {
-            id:    'dark',
-            label: '🌑 Dark',
-            url:   'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
-            attr:  '© OpenStreetMap © CARTO'
+        'dark': {
+            url:  'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+            attr: '© OpenStreetMap © CARTO'
         },
-        {
-            id:    'light',
-            label: '☀️ Light',
-            url:   'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-            attr:  '© OpenStreetMap © CARTO'
+        'light': {
+            url:  'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+            attr: '© OpenStreetMap © CARTO'
         },
-        {
-            id:    'satellite-labels',
-            label: '🛰️ Sat+Labels',
-            url:   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            attr:  'Tiles © Esri'
-        },
-    ];
-
-    const DEFAULT_STYLE_KEY = 'wcr-obstacles-style';
+        'satellite-labels': {
+            url:  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            attr: 'Tiles © Esri'
+        }
+    };
 
     const TYPE_ICONS = {
         kicker:  '🚀',
@@ -80,7 +69,6 @@
         var el    = document.getElementById('wcr-obstacles-map');
         if (!el || !window.L) return;
 
-        /* ── Portrait oder Landscape? ── */
         var IS_PORTRAIT = wrap && wrap.classList.contains('portrait');
         var W = IS_PORTRAIT ? 1080 : 1920;
         var H = IS_PORTRAIT ? 1920 : 1080;
@@ -88,8 +76,6 @@
         var ICON_SIZE = IS_PORTRAIT ? 60   : 44;
         var FONT_SIZE = IS_PORTRAIT ? '36px' : '28px';
         var LBL_SIZE  = IS_PORTRAIT ? '15px' : '11px';
-        var BTN_FONT  = IS_PORTRAIT ? '18px' : '13px';
-        var BTN_PAD   = IS_PORTRAIT ? '10px 20px' : '5px 12px';
 
         var apiUrl = (window.wcrObstaclesMap && window.wcrObstaclesMap.apiUrl)
                      || el.getAttribute('data-api');
@@ -110,7 +96,7 @@
 
         setStageRotation(stage, DEFAULT_CFG.rot);
 
-        /* ── Map-Config laden (mode-spezifisch) ── */
+        /* ── Map-Config + Style via REST laden ── */
         var cfgUrl = getMapConfigUrl();
         if (cfgUrl) {
             var u = cfgUrl + (cfgUrl.indexOf('?') >= 0 ? '&' : '?') + 'mode=' + encodeURIComponent(mode);
@@ -118,93 +104,39 @@
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (cfg) {
                     if (!cfg) return;
-                    var lat  = parseFloat(cfg.lat);
-                    var lon  = parseFloat(cfg.lon);
-                    var zoom = parseFloat(cfg.zoom);
-                    var rot  = parseFloat(cfg.rot);
+                    var lat   = parseFloat(cfg.lat);
+                    var lon   = parseFloat(cfg.lon);
+                    var zoom  = parseFloat(cfg.zoom);
+                    var rot   = parseFloat(cfg.rot);
+                    var style = cfg.style || DEFAULT_CFG.style;
+
                     if (isFinite(lat) && isFinite(lon) && isFinite(zoom)) {
                         map.setView([lat, lon], zoom);
                     }
                     if (isFinite(rot)) {
                         setStageRotation(stage, rot);
-                        /*
-                         * invalidateSize nach Rotation:
-                         * Leaflet muss seinen internen Viewport-Center neu berechnen,
-                         * damit Tiles relativ zur (oversized) Container-Mitte korrekt
-                         * positioniert werden.
-                         */
                         map.invalidateSize({ animate: false });
                     }
+
+                    // Tile-Layer mit gespeichertem Style laden
+                    var styleDef = STYLES[style] || STYLES[DEFAULT_CFG.style];
+                    L.tileLayer(styleDef.url, {
+                        attribution:  styleDef.attr,
+                        maxZoom:      21,
+                        detectRetina: true
+                    }).addTo(map);
                 })
-                .catch(function () {});
+                .catch(function () {
+                    // Fallback: Standard-Style
+                    var def = STYLES[DEFAULT_CFG.style];
+                    L.tileLayer(def.url, { attribution: def.attr, maxZoom: 21, detectRetina: true }).addTo(map);
+                });
+        } else {
+            // Kein cfgUrl: direkt Standard-Style laden
+            var def = STYLES[DEFAULT_CFG.style];
+            L.tileLayer(def.url, { attribution: def.attr, maxZoom: 21, detectRetina: true }).addTo(map);
         }
 
-        /* ── Tile-Layer ── */
-        var savedIdx = parseInt(localStorage.getItem(DEFAULT_STYLE_KEY) || '0', 10);
-        if (isNaN(savedIdx) || savedIdx < 0 || savedIdx >= STYLES.length) savedIdx = 0;
-        var currentStyleIdx = savedIdx;
-
-        var currentLayer = L.tileLayer(STYLES[currentStyleIdx].url, {
-            attribution:  STYLES[currentStyleIdx].attr,
-            maxZoom:      21,
-            detectRetina: true
-        }).addTo(map);
-
-        /* ── Style-Switcher ── */
-        var switcher = document.createElement('div');
-        switcher.className = 'wcr-style-switcher';
-
-        STYLES.forEach(function (s, idx) {
-            var btn = document.createElement('button');
-            btn.textContent = s.label;
-            btn.dataset.idx = idx;
-            btn.style.cssText = [
-                'background:rgba(15,20,30,.82)',
-                'border:1px solid rgba(255,255,255,.18)',
-                'color:#e8eaf0',
-                'font-size:'  + BTN_FONT,
-                'font-weight:600',
-                'padding:'    + BTN_PAD,
-                'border-radius:10px',
-                'cursor:pointer',
-                'text-align:left',
-                'white-space:nowrap',
-                'letter-spacing:.02em',
-                'backdrop-filter:blur(6px)',
-                '-webkit-backdrop-filter:blur(6px)'
-            ].join(';');
-
-            if (idx === currentStyleIdx) {
-                btn.style.background  = 'rgba(59,130,246,.80)';
-                btn.style.borderColor = 'rgba(99,179,255,.65)';
-            }
-
-            btn.addEventListener('click', function () {
-                var newIdx = parseInt(btn.dataset.idx, 10);
-                if (newIdx === currentStyleIdx) return;
-                map.removeLayer(currentLayer);
-                currentLayer = L.tileLayer(STYLES[newIdx].url, {
-                    attribution:  STYLES[newIdx].attr,
-                    maxZoom:      21,
-                    detectRetina: true
-                }).addTo(map);
-                currentLayer.bringToBack();
-                currentStyleIdx = newIdx;
-                localStorage.setItem(DEFAULT_STYLE_KEY, newIdx);
-                switcher.querySelectorAll('button').forEach(function (b) {
-                    b.style.background  = 'rgba(15,20,30,.82)';
-                    b.style.borderColor = 'rgba(255,255,255,.18)';
-                });
-                btn.style.background  = 'rgba(59,130,246,.80)';
-                btn.style.borderColor = 'rgba(99,179,255,.65)';
-            });
-            switcher.appendChild(btn);
-        });
-
-        if (wrap) wrap.appendChild(switcher);
-        else el.appendChild(switcher);
-
-        /* invalidateSize: Leaflet muss wissen dass der Container 2210×2210 ist */
         setTimeout(function () { map.invalidateSize({ animate: false }); }, 150);
 
         /* ── Obstacles rendern ── */
@@ -221,7 +153,6 @@
                 var ico   = o.icon_url || '';
 
                 if (lat !== 0 && lon !== 0) {
-                    /* ── Geo-Koordinaten via Leaflet Marker ── */
                     var iconHtml = '<div style="transform:rotate(' + rot + 'deg);display:flex;flex-direction:column;align-items:center;gap:4px;">';
                     if (ico) {
                         iconHtml += '<img src="' + ico + '" style="width:' + ICON_SIZE + 'px;height:' + ICON_SIZE + 'px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))"/>';
@@ -240,7 +171,6 @@
                     L.marker([lat, lon], { icon: divIcon }).addTo(map);
 
                 } else if (px !== 0 || py !== 0) {
-                    /* ── Prozent-Position → absolute px im Stage ── */
                     var container = stage || wrap || el;
                     var d = document.createElement('div');
                     d.className = 'wcr-obstacle';

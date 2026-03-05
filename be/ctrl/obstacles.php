@@ -53,27 +53,39 @@ function obs_curl(string $url, ?array $postData = null): array {
     ];
 }
 
+$STYLE_OPTIONS = [
+    'voyager-nolabels'  => ['label' => '🗺️ OSM (clean)',    'preview_bg' => '#f2ede4'],
+    'satellite'         => ['label' => '🛰️ Satellite',      'preview_bg' => '#2c3e2d'],
+    'dark'              => ['label' => '🌑 Dark',            'preview_bg' => '#1a1a2e'],
+    'light'             => ['label' => '☀️ Light',           'preview_bg' => '#f8f8f8'],
+    'satellite-labels'  => ['label' => '🛰️ Sat + Labels',   'preview_bg' => '#2c3e2d'],
+];
+
 // ── Mode (Portrait/Landscape) ──
 $mode = $_POST['mode'] ?? ($_GET['mode'] ?? 'landscape');
 $mode = strtolower(trim((string)$mode));
 if (!in_array($mode, ['landscape', 'portrait'], true)) $mode = 'landscape';
 $modeLabel = ($mode === 'portrait') ? 'Portrait (1080×1920)' : 'Landscape (1920×1080)';
 
-// ── Aktuelle Map-Config laden (mode-spezifisch) ──
-$mapCfg = ['lat' => 52.821428, 'lon' => 13.577100, 'zoom' => 17.9, 'rot' => 0];
+// ── Aktuelle Map-Config laden ──
+$mapCfg = ['lat' => 52.821428, 'lon' => 13.577100, 'zoom' => 17.9, 'rot' => 0, 'style' => 'voyager-nolabels'];
 $r = obs_curl(OBS_WP_API . '?mode=' . rawurlencode($mode));
 if ($r['ok'] && is_array($r['json']) && isset($r['json']['lat'])) {
     $mapCfg = array_merge($mapCfg, $r['json']);
 }
+$currentStyle = $mapCfg['style'] ?? 'voyager-nolabels';
+if (!isset($STYLE_OPTIONS[$currentStyle])) $currentStyle = 'voyager-nolabels';
 
 // ── Map-Config speichern (POST) ──
 $cfgMsg  = '';
 $cfgType = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
-    $lat  = (float)str_replace(',', '.', $_POST['map_lat']  ?? '');
-    $lon  = (float)str_replace(',', '.', $_POST['map_lon']  ?? '');
-    $zoom = (float)str_replace(',', '.', $_POST['map_zoom'] ?? '');
-    $rot  = (float)str_replace(',', '.', $_POST['map_rot']  ?? '0');
+    $lat   = (float)str_replace(',', '.', $_POST['map_lat']   ?? '');
+    $lon   = (float)str_replace(',', '.', $_POST['map_lon']   ?? '');
+    $zoom  = (float)str_replace(',', '.', $_POST['map_zoom']  ?? '');
+    $rot   = (float)str_replace(',', '.', $_POST['map_rot']   ?? '0');
+    $style = $_POST['map_style'] ?? 'voyager-nolabels';
+    if (!isset($STYLE_OPTIONS[$style])) $style = 'voyager-nolabels';
 
     $r2 = obs_curl(OBS_WP_API, [
         'mode'       => $mode,
@@ -81,13 +93,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
         'lon'        => $lon,
         'zoom'       => $zoom,
         'rot'        => $rot,
+        'style'      => $style,
         'wcr_secret' => OBS_SECRET,
     ]);
 
     if ($r2['ok'] && !empty($r2['json']['ok'])) {
-        $cfgMsg  = '✓ Karten-Config gespeichert (' . $mode . ', zoom ' . number_format($zoom, 1) . ' · rot ' . number_format($rot, 1) . '° · ' . $lat . ', ' . $lon . ')';
-        $cfgType = 'ok';
-        $mapCfg  = ['lat' => $lat, 'lon' => $lon, 'zoom' => $zoom, 'rot' => $rot];
+        $cfgMsg       = '✓ Gespeichert — ' . $mode . ' · zoom ' . number_format($zoom, 1) . ' · rot ' . number_format($rot, 1) . '° · Style: ' . htmlspecialchars($STYLE_OPTIONS[$style]['label']);
+        $cfgType      = 'ok';
+        $mapCfg       = ['lat' => $lat, 'lon' => $lon, 'zoom' => $zoom, 'rot' => $rot, 'style' => $style];
+        $currentStyle = $style;
     } else {
         $debug   = $r2['body'] ? ' — ' . htmlspecialchars(substr($r2['body'], 0, 120)) : '';
         $cfgMsg  = '✗ Fehler: ' . ($r2['err'] ?: 'Unbekannt') . $debug;
@@ -179,15 +193,27 @@ $maxRows = max(20, count($rows) + 3);
     .sl-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#0071e3; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer; }
     .sl-hint { font-size:10px; color:#aeaeb2; margin-top:3px; }
 
-    /* CARTO Voyager land background – masks empty corners during rotation */
     #mcp-map {
       width:100%; height:320px; border-radius:10px; border:1px solid #e5e5ea; overflow:hidden;
-      position: relative; background: #f2ede4;
+      position:relative; background:#f2ede4;
     }
     .mcp-crosshair {
       position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
       width:22px; height:22px; pointer-events:none; z-index:10;
     }
+
+    /* Style-Switcher */
+    .style-switcher { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+    .style-btn {
+      display:flex; align-items:center; gap:6px;
+      padding:6px 14px; border-radius:20px;
+      border:2px solid #e5e7eb; background:#f9fafb;
+      font-size:12px; font-weight:600; color:#374151;
+      cursor:pointer; transition:all .15s; white-space:nowrap;
+    }
+    .style-btn:hover { border-color:#bdd9f5; background:#e8f5ff; color:#1a6fb5; }
+    .style-btn.active { border-color:#0071e3; background:#e8f5ff; color:#0057d9; }
+    .style-btn .style-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
 
     .mcp-actions { display:flex; gap:10px; margin-top:16px; }
     .mcp-hint-bar { font-size:11px; color:#86868b; margin-top:8px; display:flex; align-items:center; gap:6px; }
@@ -225,17 +251,42 @@ $maxRows = max(20, count($rows) + 3);
   <!-- SEKTION 1: KARTEN-CONFIG -->
   <div class="mcp-card">
     <h2>🗺️ Karten-Einstellungen</h2>
-    <p class="sub">Aktuell: <strong><?= htmlspecialchars($modeLabel) ?></strong> · Zoom + Mittelpunkt + Rotation für <code>[wcr_obstacles_map mode=&quot;<?= htmlspecialchars($mode) ?>&quot;]</code>.</p>
+    <p class="sub">Aktuell: <strong><?= htmlspecialchars($modeLabel) ?></strong></p>
 
-    <div class="mcp-actions" style="margin-top:0;">
+    <div class="mcp-actions" style="margin-top:0;margin-bottom:16px;">
       <?php $self = strtok($_SERVER['REQUEST_URI'], '?'); ?>
       <a class="btn-secondary <?= $mode === 'landscape' ? 'is-active' : '' ?>" href="<?= htmlspecialchars($self) ?>?mode=landscape">Landscape</a>
-      <a class="btn-secondary <?= $mode === 'portrait' ? 'is-active' : '' ?>" href="<?= htmlspecialchars($self) ?>?mode=portrait">Portrait</a>
+      <a class="btn-secondary <?= $mode === 'portrait'  ? 'is-active' : '' ?>" href="<?= htmlspecialchars($self) ?>?mode=portrait">Portrait</a>
     </div>
 
-    <form method="POST" style="margin-top:16px;">
+    <form method="POST">
       <input type="hidden" name="save_map_config" value="1">
       <input type="hidden" name="mode" value="<?= hv($mode) ?>">
+      <input type="hidden" id="map_style" name="map_style" value="<?= hv($currentStyle) ?>">
+
+      <!-- Style-Switcher -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">🎨 Kartenstil</div>
+        <div class="style-switcher">
+          <?php
+          $styleDots = [
+            'voyager-nolabels' => '#e8dcc8',
+            'satellite'        => '#4a6741',
+            'dark'             => '#1a1a2e',
+            'light'            => '#f0f0f0',
+            'satellite-labels' => '#3d6b50',
+          ];
+          foreach ($STYLE_OPTIONS as $key => $opt): ?>
+          <button type="button"
+            class="style-btn <?= $key === $currentStyle ? 'active' : '' ?>"
+            data-style="<?= hv($key) ?>"
+            onclick="setMapStyle('<?= hv($key) ?>')">
+            <span class="style-dot" style="background:<?= hv($styleDots[$key] ?? '#ccc') ?>"></span>
+            <?= htmlspecialchars($opt['label']) ?>
+          </button>
+          <?php endforeach; ?>
+        </div>
+      </div>
 
       <div class="mcp-grid">
         <div class="mcp-sliders">
@@ -353,118 +404,116 @@ $maxRows = max(20, count($rows) + 3);
 (function () {
     var DEF = { lat: 52.821428, lon: 13.577100, zoom: 17.9, rot: 0 };
 
+    var TILE_URLS = {
+        'voyager-nolabels': ['https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
+                             'https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
+                             'https://c.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png'],
+        'satellite':        ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        'dark':             ['https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+                             'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+                             'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png'],
+        'light':            ['https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
+                             'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
+                             'https://c.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'],
+        'satellite-labels': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']
+    };
+
     var slZ   = document.getElementById('sl-zoom');
     var slLat = document.getElementById('sl-lat');
     var slLon = document.getElementById('sl-lon');
     var slRot = document.getElementById('sl-rot');
-
     var lblZ  = document.getElementById('lbl-zoom');
     var lblLt = document.getElementById('lbl-lat');
     var lblLn = document.getElementById('lbl-lon');
     var lblR  = document.getElementById('lbl-rot');
-
     var cords = document.getElementById('mcp-coords');
-
-    var hZ   = document.getElementById('map_zoom');
-    var hLat = document.getElementById('map_lat');
-    var hLon = document.getElementById('map_lon');
-    var hRot = document.getElementById('map_rot');
+    var hZ    = document.getElementById('map_zoom');
+    var hLat  = document.getElementById('map_lat');
+    var hLon  = document.getElementById('map_lon');
+    var hRot  = document.getElementById('map_rot');
+    var hStyle = document.getElementById('map_style');
 
     function deg2rad(d){ return d * Math.PI / 180; }
     function rad2deg(r){ return r * 180 / Math.PI; }
-
     function grad(sl){
         var p=(sl.value-sl.min)/(sl.max-sl.min)*100;
         sl.style.background='linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';
     }
 
+    var currentStyleKey = hStyle.value || 'voyager-nolabels';
+
     var view = new ol.View({
-        center: ol.proj.fromLonLat([parseFloat(slLon.value), parseFloat(slLat.value)]),
-        zoom:   parseFloat(slZ.value),
+        center:   ol.proj.fromLonLat([parseFloat(slLon.value), parseFloat(slLat.value)]),
+        zoom:     parseFloat(slZ.value),
         rotation: deg2rad(parseFloat(slRot.value || '0'))
     });
 
-    var map = new ol.Map({
-        target: 'mcp-map',
-        layers: [
-            new ol.layer.Tile({
-                // preload:Infinity → OL loads extra tiles beyond viewport to fill rotated corners
-                preload: Infinity,
-                updateWhileAnimating: true,
-                updateWhileInteracting: true,
-                source: new ol.source.XYZ({
-                    urls: [
-                        'https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
-                        'https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
-                        'https://c.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png'
-                    ],
-                    attributions: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
-                    maxZoom: 21
-                })
-            })
-        ],
-        view: view,
-        controls: [
-            new ol.control.Zoom(),
-            new ol.control.Rotate()
-        ]
+    var tileSource = new ol.source.XYZ({
+        urls:     TILE_URLS[currentStyleKey] || TILE_URLS['voyager-nolabels'],
+        maxZoom:  21
     });
+    var tileLayer = new ol.layer.Tile({
+        preload:                Infinity,
+        updateWhileAnimating:   true,
+        updateWhileInteracting: true,
+        source:                 tileSource
+    });
+
+    var map = new ol.Map({
+        target:   'mcp-map',
+        layers:   [tileLayer],
+        view:     view,
+        controls: [new ol.control.Zoom(), new ol.control.Rotate()]
+    });
+
+    // Style wechseln
+    window.setMapStyle = function(key) {
+        var urls = TILE_URLS[key] || TILE_URLS['voyager-nolabels'];
+        tileLayer.setSource(new ol.source.XYZ({ urls: urls, maxZoom: 21 }));
+        currentStyleKey = key;
+        hStyle.value = key;
+        document.querySelectorAll('.style-btn').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.style === key);
+        });
+    };
 
     function syncUIFromView() {
         var z = view.getZoom();
         var c = ol.proj.toLonLat(view.getCenter());
         var r = rad2deg(view.getRotation());
-
         slZ.value   = (+z).toFixed(1);
         slLat.value = (+c[1]).toFixed(6);
         slLon.value = (+c[0]).toFixed(6);
         slRot.value = (+r).toFixed(1);
-
         lblZ.textContent  = (+z).toFixed(1);
         lblLt.textContent = (+c[1]).toFixed(6);
         lblLn.textContent = (+c[0]).toFixed(6);
         lblR.textContent  = (+r).toFixed(1) + '°';
-
         cords.textContent = (+c[1]).toFixed(6) + ', ' + (+c[0]).toFixed(6)
                           + ' · zoom ' + (+z).toFixed(1)
                           + ' · rot '  + (+r).toFixed(1) + '°';
-
         hZ.value   = (+z).toFixed(1);
         hLat.value = (+c[1]).toFixed(6);
         hLon.value = (+c[0]).toFixed(6);
         hRot.value = (+r).toFixed(1);
-
         [slZ, slLat, slLon, slRot].forEach(grad);
     }
 
     function syncViewFromUI() {
-        var z  = parseFloat(slZ.value);
-        var lt = parseFloat(slLat.value);
-        var ln = parseFloat(slLon.value);
-        var r  = parseFloat(slRot.value || '0');
-
-        view.setZoom(z);
-        view.setCenter(ol.proj.fromLonLat([ln, lt]));
-        view.setRotation(deg2rad(r));
-
+        view.setZoom(parseFloat(slZ.value));
+        view.setCenter(ol.proj.fromLonLat([parseFloat(slLon.value), parseFloat(slLat.value)]));
+        view.setRotation(deg2rad(parseFloat(slRot.value || '0')));
         syncUIFromView();
     }
 
-    map.on('click', function (evt) {
-        view.setCenter(evt.coordinate);
-        syncUIFromView();
-    });
-
-    map.on('moveend', function () {
-        syncUIFromView();
-    });
-
-    slZ.addEventListener('input', syncViewFromUI);
+    map.on('click',   function(evt) { view.setCenter(evt.coordinate); syncUIFromView(); });
+    map.on('moveend', function()    { syncUIFromView(); });
+    slZ.addEventListener('input',   syncViewFromUI);
     slLat.addEventListener('input', syncViewFromUI);
     slLon.addEventListener('input', syncViewFromUI);
     slRot.addEventListener('input', syncViewFromUI);
 
-    document.getElementById('btn-mcp-reset').addEventListener('click', function () {
+    document.getElementById('btn-mcp-reset').addEventListener('click', function() {
         slZ.value   = DEF.zoom;
         slLat.value = DEF.lat;
         slLon.value = DEF.lon;
