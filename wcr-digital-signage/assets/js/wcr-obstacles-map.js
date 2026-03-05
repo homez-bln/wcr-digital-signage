@@ -1,7 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    WCR Obstacles Map – wcr-obstacles-map.js
-   Separate pos_x/pos_y für Landscape (pos_x_l/pos_y_l)
-   und Portrait (pos_x_p/pos_y_p)
+   PNG-Icons mit Fallback + separate pos für Landscape/Portrait
 ═══════════════════════════════════════════════════════ */
 (function () {
 
@@ -132,19 +131,36 @@
                 if (py < 0) py = parseFloat(o.pos_y||0);
 
                 if (lat !== 0 && lon !== 0) {
-                    // Geo-Marker
+                    // ── Geo-Marker mit PNG + Emoji-Fallback ──
                     var iconHtml = '<div style="transform:rotate('+rot+'deg);display:flex;flex-direction:column;align-items:center;gap:4px;">';
+                    
                     if (ico) {
-                        iconHtml += '<img src="'+ico+'" style="width:'+ICON_SIZE+'px;height:'+ICON_SIZE+'px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))"/>';
+                        // PNG-Bild mit Emoji als Fallback bei Ladefehler
+                        iconHtml += '<div style="position:relative;width:'+ICON_SIZE+'px;height:'+ICON_SIZE+'px;">';
+                        iconHtml += '<img src="'+ico+'" '
+                                 + 'style="width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));position:absolute;top:0;left:0" '
+                                 + 'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" />';
+                        iconHtml += '<div style="display:none;font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.8));text-align:center">'+emoji+'</div>';
+                        iconHtml += '</div>';
                     } else {
+                        // Nur Emoji
                         iconHtml += '<div style="font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.8))">'+emoji+'</div>';
                     }
+                    
                     if (label) iconHtml += '<span style="font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em">'+label+'</span>';
                     iconHtml += '</div>';
-                    L.marker([lat,lon],{icon:L.divIcon({html:iconHtml,className:'wcr-leaflet-obstacle',iconAnchor:[ICON_SIZE/2,ICON_SIZE/2]})}).addTo(map);
+                    
+                    L.marker([lat,lon],{
+                        icon:L.divIcon({
+                            html:iconHtml,
+                            className:'wcr-leaflet-obstacle',
+                            iconAnchor:[ICON_SIZE/2,ICON_SIZE/2]
+                        }),
+                        zIndexOffset:1000
+                    }).addTo(map);
 
                 } else if (px >= 0 && px <= 100 && py >= 0 && py <= 100) {
-                    // Pixel-Position — in Overlay (immer über Karte)
+                    // ── Pixel-Position — in Overlay (immer über Karte) ──
                     var d = document.createElement('div');
                     d.className = 'wcr-obstacle';
                     d.style.cssText = [
@@ -154,19 +170,28 @@
                         'transform:translate(-50%,-50%)'+(rot?' rotate('+rot+'deg)':''),
                         'display:flex','flex-direction:column','align-items:center','gap:4px','pointer-events:none'
                     ].join(';');
-                    var iconDiv = document.createElement('div');
-                    iconDiv.style.cssText = 'font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
+                    
                     if (ico) {
-                        iconDiv.style.backgroundImage='url('+ico+')';
-                        iconDiv.style.width=ICON_SIZE+'px';
-                        iconDiv.style.height=ICON_SIZE+'px';
-                        iconDiv.style.backgroundSize='contain';
-                        iconDiv.style.backgroundRepeat='no-repeat';
-                        iconDiv.style.backgroundPosition='center';
+                        // PNG mit Fallback
+                        var imgEl = document.createElement('img');
+                        imgEl.src = ico;
+                        imgEl.style.cssText = 'width:'+ICON_SIZE+'px;height:'+ICON_SIZE+'px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
+                        imgEl.onerror = function() {
+                            this.style.display = 'none';
+                            var fallback = document.createElement('div');
+                            fallback.textContent = emoji;
+                            fallback.style.cssText = 'font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
+                            this.parentNode.insertBefore(fallback, this);
+                        };
+                        d.appendChild(imgEl);
                     } else {
+                        // Nur Emoji
+                        var iconDiv = document.createElement('div');
                         iconDiv.textContent = emoji;
+                        iconDiv.style.cssText = 'font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
+                        d.appendChild(iconDiv);
                     }
-                    d.appendChild(iconDiv);
+                    
                     if (label) {
                         var lblEl = document.createElement('span');
                         lblEl.textContent = label;
