@@ -8,7 +8,8 @@
     const DEFAULT_CFG = {
         lat:  52.821428251670844,
         lon:  13.5770999960116,
-        zoom: 17.9
+        zoom: 17.9,
+        rot:  0
     };
 
     const STYLES = [
@@ -67,9 +68,16 @@
         return (window.wcrObstaclesMap && window.wcrObstaclesMap.mapConfigUrl) || '';
     }
 
+    function setStageRotation(stage, deg) {
+        if (!stage) return;
+        if (!isFinite(deg)) deg = 0;
+        stage.style.transform = 'rotate(' + deg + 'deg)';
+    }
+
     function initObstaclesMap() {
-        var wrap = document.getElementById('wcr-obstacles-map-wrap');
-        var el   = document.getElementById('wcr-obstacles-map');
+        var wrap  = document.getElementById('wcr-obstacles-map-wrap');
+        var stage = document.getElementById('wcr-obstacles-stage');
+        var el    = document.getElementById('wcr-obstacles-map');
         if (!el || !window.L) return;
 
         /* ── Portrait oder Landscape? ── */
@@ -100,6 +108,8 @@
             preferCanvas:       true
         }).setView([DEFAULT_CFG.lat, DEFAULT_CFG.lon], DEFAULT_CFG.zoom);
 
+        setStageRotation(stage, DEFAULT_CFG.rot);
+
         /* ── Map-Config laden (mode-spezifisch) ── */
         var cfgUrl = getMapConfigUrl();
         if (cfgUrl) {
@@ -111,8 +121,14 @@
                     var lat  = parseFloat(cfg.lat);
                     var lon  = parseFloat(cfg.lon);
                     var zoom = parseFloat(cfg.zoom);
-                    if (!isFinite(lat) || !isFinite(lon) || !isFinite(zoom)) return;
-                    map.setView([lat, lon], zoom);
+                    var rot  = parseFloat(cfg.rot);
+                    if (isFinite(lat) && isFinite(lon) && isFinite(zoom)) {
+                        map.setView([lat, lon], zoom);
+                    }
+                    if (isFinite(rot)) {
+                        setStageRotation(stage, rot);
+                        setTimeout(function () { map.invalidateSize(); }, 50);
+                    }
                 })
                 .catch(function () {});
         }
@@ -217,8 +233,8 @@
                     L.marker([lat, lon], { icon: divIcon }).addTo(map);
 
                 } else if (px !== 0 || py !== 0) {
-                    /* ── Prozent-Position → absolute px im Wrap ── */
-                    var container = wrap || el;
+                    /* ── Prozent-Position → absolute px im Stage ── */
+                    var container = stage || wrap || el;
                     var d = document.createElement('div');
                     d.className = 'wcr-obstacle';
                     d.style.cssText = [
@@ -260,9 +276,9 @@
                 .then(function (r) { return r.ok ? r.json() : []; })
                 .then(function (data) {
                     if (!Array.isArray(data) || data.length === 0) return;
-                    var container = wrap || el;
+                    var container = stage || wrap || el;
                     container.querySelectorAll('.wcr-obstacle').forEach(function (n) { n.remove(); });
-                    var hint = container.querySelector('.wcr-obstacles-placeholder-hint');
+                    var hint = (wrap || el).querySelector('.wcr-obstacles-placeholder-hint');
                     if (hint) hint.remove();
                     renderObstacles(data);
                 })

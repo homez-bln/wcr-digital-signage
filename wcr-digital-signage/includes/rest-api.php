@@ -134,7 +134,7 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
-    // ── Obstacles Map-Config (Zoom + Center) ──
+    // ── Obstacles Map-Config (Zoom + Center + Rotation) ──
     register_rest_route('wakecamp/v1', '/obstacles/map-config', [
         [
             'methods'             => 'GET',
@@ -145,25 +145,30 @@ add_action('rest_api_init', function() {
                 $def_lat  = 52.821428251670844;
                 $def_lon  = 13.5770999960116;
                 $def_zoom = 17.9;
+                $def_rot  = 0.0;
 
                 $lat_key  = 'wcr_obstacles_map_lat_'  . $mode;
                 $lon_key  = 'wcr_obstacles_map_lon_'  . $mode;
                 $zoom_key = 'wcr_obstacles_map_zoom_' . $mode;
+                $rot_key  = 'wcr_obstacles_map_rot_'  . $mode;
 
                 $lat  = get_option($lat_key,  null);
                 $lon  = get_option($lon_key,  null);
                 $zoom = get_option($zoom_key, null);
+                $rot  = get_option($rot_key,  null);
 
                 // Fallback: alte Keys (für bestehende Installationen)
                 if (!is_numeric($lat))  $lat  = get_option('wcr_obstacles_map_lat',  $def_lat);
                 if (!is_numeric($lon))  $lon  = get_option('wcr_obstacles_map_lon',  $def_lon);
                 if (!is_numeric($zoom)) $zoom = get_option('wcr_obstacles_map_zoom', $def_zoom);
+                if (!is_numeric($rot))  $rot  = get_option('wcr_obstacles_map_rot',  $def_rot);
 
                 return rest_ensure_response([
                     'mode' => $mode,
                     'lat'  => (float)$lat,
                     'lon'  => (float)$lon,
                     'zoom' => (float)$zoom,
+                    'rot'  => (float)$rot,
                 ]);
             },
             'permission_callback' => '__return_true',
@@ -189,23 +194,34 @@ add_action('rest_api_init', function() {
                 $lat  = (float) $req->get_param('lat');
                 $lon  = (float) $req->get_param('lon');
                 $zoom = (float) $req->get_param('zoom');
+                $rot  = (float) ($req->get_param('rot') ?? 0);
 
                 if ($lat < -90  || $lat > 90)  return new WP_Error('invalid', 'Lat ungültig',  ['status' => 400]);
                 if ($lon < -180 || $lon > 180) return new WP_Error('invalid', 'Lon ungültig',  ['status' => 400]);
                 if ($zoom < 1   || $zoom > 21) return new WP_Error('invalid', 'Zoom ungültig', ['status' => 400]);
+                if ($rot < -360 || $rot > 360) return new WP_Error('invalid', 'Rotation ungültig', ['status' => 400]);
 
                 update_option('wcr_obstacles_map_lat_'  . $mode, $lat);
                 update_option('wcr_obstacles_map_lon_'  . $mode, $lon);
                 update_option('wcr_obstacles_map_zoom_' . $mode, $zoom);
+                update_option('wcr_obstacles_map_rot_'  . $mode, $rot);
 
                 // Backward-Compat: alte Keys weiter pflegen (landscape = historischer Default)
                 if ($mode === 'landscape') {
                     update_option('wcr_obstacles_map_lat',  $lat);
                     update_option('wcr_obstacles_map_lon',  $lon);
                     update_option('wcr_obstacles_map_zoom', $zoom);
+                    update_option('wcr_obstacles_map_rot',  $rot);
                 }
 
-                return rest_ensure_response(['ok' => true, 'mode' => $mode, 'lat' => $lat, 'lon' => $lon, 'zoom' => $zoom]);
+                return rest_ensure_response([
+                    'ok'   => true,
+                    'mode' => $mode,
+                    'lat'  => $lat,
+                    'lon'  => $lon,
+                    'zoom' => $zoom,
+                    'rot'  => $rot,
+                ]);
             },
             'permission_callback' => '__return_true',
         ],

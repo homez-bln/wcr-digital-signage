@@ -368,6 +368,9 @@ if (!function_exists('wcr_sc_obstacles_map')) {
         ob_start();
 
         echo '<div id="wcr-obstacles-map-wrap" class="' . esc_attr($wrap_class) . '" data-mode="' . esc_attr($mode) . '">';
+
+        // Stage (wird rotiert)
+        echo '<div id="wcr-obstacles-stage" class="wcr-obstacles-stage">';
         echo '<div id="wcr-obstacles-map" data-api="' . esc_url($api_url) . '"></div>';
 
         // ── PHP-Fallback Obstacles (nur pos_x/pos_y, kein lat/lon) ──
@@ -399,6 +402,8 @@ if (!function_exists('wcr_sc_obstacles_map')) {
             echo '<span style="font-size:' . $lbl_size . ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap">' . $lbl . '</span>';
             echo '</div>';
         }
+
+        echo '</div>'; // stage
 
         if ($is_placeholder) {
             echo '<div class="wcr-obstacles-placeholder-hint">Platzhalter – bitte Obstacles im Backend pflegen</div>';

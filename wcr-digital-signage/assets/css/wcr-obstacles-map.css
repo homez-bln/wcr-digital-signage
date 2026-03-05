@@ -13,20 +13,26 @@
     background: #e8e0d8;
     font-family: 'Segoe UI', system-ui, sans-serif;
 }
+
+/* Stage wird gedreht (Map + Overlays), UI-Controls bleiben ungedreht */
+#wcr-obstacles-map-wrap .wcr-obstacles-stage {
+    position: absolute;
+    inset:    0;
+    width:    100%;
+    height:   100%;
+    transform-origin: 50% 50%;
+}
+
 #wcr-obstacles-map-wrap #wcr-obstacles-map {
     position: absolute;
     inset:    0;
-    width:    1920px;
-    height:   1080px;
+    width:    100%;
+    height:   100%;
     z-index:  0;
 }
 
 /* ── PORTRAIT ── */
 #wcr-obstacles-map-wrap.portrait {
-    width:  1080px;
-    height: 1920px;
-}
-#wcr-obstacles-map-wrap.portrait #wcr-obstacles-map {
     width:  1080px;
     height: 1920px;
 }
