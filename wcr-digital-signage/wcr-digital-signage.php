@@ -33,6 +33,100 @@ add_action( 'admin_menu', function() {
     );
 });
 
+/* ════════════════════════════════════════════════════════
+   AJAX: Obstacles speichern
+   POST admin-ajax.php?action=wcr_save_obstacles
+   Body (JSON): { obstacles: [ {id, name, type, lat, lon, rotation, icon_url, active}, … ] }
+════════════════════════════════════════════════════════ */
+add_action( 'wp_ajax_wcr_save_obstacles', function() {
+
+    // Nonce prüfen
+    if ( ! check_ajax_referer( 'wcr_obstacles_map_config', '_wpnonce', false ) ) {
+        wp_send_json_error( 'Nonce ungültig', 403 );
+    }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Keine Berechtigung', 403 );
+    }
+
+    $body      = file_get_contents( 'php://input' );
+    $data      = json_decode( $body, true );
+    $obstacles = isset( $data['obstacles'] ) && is_array( $data['obstacles'] ) ? $data['obstacles'] : [];
+
+    if ( empty( $obstacles ) ) {
+        wp_send_json_error( 'Keine Daten übergeben' );
+    }
+
+    $db = get_ionos_db_connection();
+    if ( ! $db ) {
+        wp_send_json_error( 'DB-Verbindung fehlgeschlagen' );
+    }
+
+    $saved   = 0;
+    $updated = 0;
+    $errors  = [];
+
+    foreach ( $obstacles as $obs ) {
+        $id       = isset($obs['id'])       ? (int)$obs['id']                            : 0;
+        $name     = isset($obs['name'])     ? sanitize_text_field($obs['name'])           : '';
+        $type     = isset($obs['type'])     ? sanitize_text_field($obs['type'])           : '';
+        $lat      = isset($obs['lat'])      ? (float)$obs['lat']                          : 0.0;
+        $lon      = isset($obs['lon'])      ? (float)$obs['lon']                          : 0.0;
+        $rotation = isset($obs['rotation']) ? (float)$obs['rotation']                     : 0.0;
+        $icon_url = isset($obs['icon_url']) ? esc_url_raw(trim($obs['icon_url']))          : '';
+        $active   = isset($obs['active'])   ? (int)(bool)$obs['active']                   : 1;
+
+        if ( $name === '' ) continue;
+
+        if ( $id > 0 ) {
+            // UPDATE bestehende Zeile
+            $result = $db->update(
+                'obstacles',
+                [
+                    'name'     => $name,
+                    'type'     => $type,
+                    'lat'      => $lat,
+                    'lon'      => $lon,
+                    'rotation' => $rotation,
+                    'icon_url' => $icon_url,
+                    'active'   => $active,
+                ],
+                [ 'id' => $id ],
+                [ '%s', '%s', '%f', '%f', '%f', '%s', '%d' ],
+                [ '%d' ]
+            );
+            if ( $result !== false ) $updated++;
+            else $errors[] = 'Update ID ' . $id . ' fehlgeschlagen';
+        } else {
+            // INSERT neue Zeile
+            $result = $db->insert(
+                'obstacles',
+                [
+                    'name'     => $name,
+                    'type'     => $type,
+                    'lat'      => $lat,
+                    'lon'      => $lon,
+                    'rotation' => $rotation,
+                    'icon_url' => $icon_url,
+                    'active'   => $active,
+                    // pos_x, pos_y, pos_x_l, pos_y_l, pos_x_p, pos_y_p bleiben NULL
+                ],
+                [ '%s', '%s', '%f', '%f', '%f', '%s', '%d' ]
+            );
+            if ( $result ) $saved++;
+            else $errors[] = 'Insert "' . $name . '" fehlgeschlagen';
+        }
+    }
+
+    $msg = $updated . ' aktualisiert, ' . $saved . ' neu gespeichert';
+    if ( ! empty( $errors ) ) {
+        $msg .= ' • Fehler: ' . implode( '; ', $errors );
+    }
+
+    wp_send_json_success( $msg );
+});
+
+/* ════════════════════════════════════════════════════════ */
+
 function wcr_ds_defaults() {
     return array(
         'clr_green'    => '#679467',
@@ -139,7 +233,7 @@ function wcr_ds_load_leaflet() {
     }
 }
 
-// ── Shortcode-Registrierungen ───────────────────────────────────
+// ── Shortcode-Registrierungen ───────────────────────────────────────────────
 add_shortcode( 'wcr_getraenke',    'wcr_sc_getraenke' );
 add_shortcode( 'wcr_softdrinks',   'wcr_sc_softdrinks' );
 add_shortcode( 'wcr_essen',        'wcr_sc_essen' );
@@ -147,11 +241,11 @@ add_shortcode( 'wcr_kaffee',       'wcr_sc_kaffee' );
 add_shortcode( 'wcr_windmap',      'wcr_sc_windmap' );
 add_shortcode( 'wcr_wetter',       'wcr_sc_wetter' );
 add_shortcode( 'wcr_starter_pack', 'wcr_sc_starter_pack' );
-add_shortcode( 'wcr_eis',          'wcr_sc_eis' );     // Eiskarte
-add_shortcode( 'wcr_cable',        'wcr_sc_cable' );   // Cablepark-Preise
-add_shortcode( 'wcr_camping',      'wcr_sc_camping' ); // Camping-Preise
+add_shortcode( 'wcr_eis',          'wcr_sc_eis' );
+add_shortcode( 'wcr_cable',        'wcr_sc_cable' );
+add_shortcode( 'wcr_camping',      'wcr_sc_camping' );
 
-// ── Bestehende Shortcode-Funktionen ────────────────────────────
+// ── Shortcode-Funktionen ─────────────────────────────────────────────────
 function wcr_sc_getraenke( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
     $out .= '<script>document.addEventListener("DOMContentLoaded",function(){WCR.renderDrinksList("drinks-display",[{label:"Bier",types:["bier","weissbier","wein"]},{label:"Mix",types:["bier-mix","brlo","weinmix"]},{label:"Drinks",types:["longdrink","shots"]}],"/wp-json/wakecamp/v1/drinks");});</script>' . "\n";
@@ -193,13 +287,6 @@ function wcr_sc_starter_pack( $atts ) {
     wp_enqueue_script( 'wcr-starter-pack', WCR_DS_URL . 'assets/js/wcr-starter-pack.js', array('gsap'), WCR_DS_VERSION, true );
     return '<div id="sp-display"></div>' . "\n";
 }
-
-// ── NEUE Shortcode-Funktionen ───────────────────────────────────
-
-/**
- * [wcr_eis] – Eiskarte aus Tabelle `ice`
- * typ-Werte sind Positionen: obenlinks, obenrechts, untenlinks, untenrechts
- */
 function wcr_sc_eis( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
     $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
@@ -209,11 +296,6 @@ function wcr_sc_eis( $atts ) {
     $out .= '});</script>' . "\n";
     return $out;
 }
-
-/**
- * [wcr_cable] – Cablepark-Preise aus Tabelle `cable`
- * typ-Werte: Ticket, ticket-s, ticket-e, ticket-ed, ticket-a, ticket-d, ticket, board, hardware, spezial
- */
 function wcr_sc_cable( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
     $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
@@ -223,11 +305,6 @@ function wcr_sc_cable( $atts ) {
     $out .= '});</script>' . "\n";
     return $out;
 }
-
-/**
- * [wcr_camping] – Camping-Preise aus Tabelle `camping`
- * typ-Werte: personen, night, extra
- */
 function wcr_sc_camping( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
     $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
