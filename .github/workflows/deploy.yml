@@ -1,43 +1,30 @@
-name: 🚀 Deploy to IONOS
+name: Deploy to IONOS
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  deploy-plugin:
-    name: Deploy wcr-digital-signage Plugin
+  deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy Plugin via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local_path: ./wcr-digital-signage/*
-          remote_path: /WebSpace/wordpress/wp-content/plugins/wcr-digital-signage/
-          sftp_only: true
-          delete_remote_files: false
-
-  deploy-be:
-    name: Deploy BE Folder
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy BE via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local_path: ./be/*
-          remote_path: /WebSpace/wordpress/be/
-          sftp_only: true
-          delete_remote_files: false
+          server-dir: /wp-content/plugins/wcr-digital-signage/
+          local-dir: ./wcr-digital-signage/
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.DS_Store
