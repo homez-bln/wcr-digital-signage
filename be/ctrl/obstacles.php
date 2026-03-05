@@ -1,12 +1,6 @@
 <?php
 /**
  * ctrl/obstacles.php — Obstacles-Verwaltung + Karten-Einstellungen
- *
- * Sektion 1: Karten-Config  → Zoom, Lat, Lon per Slider
- *            Speichert via PHP-cURL (be/api/save_map_config.php → WP REST)
- *
- * Sektion 2: Obstacle-Liste → Name, Typ, pos_x, pos_y, Rotation, Icon, Aktiv
- *            Speichert direkt per PDO in die IONOS-DB
  */
 
 $PAGE_TITLE = 'Obstacles';
@@ -30,7 +24,9 @@ $db->exec("CREATE TABLE IF NOT EXISTS obstacles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-// ── cURL-Hilfsfunktion (wie in ds-settings.php) ──
+define('OBS_WP_API',  'https://wcr-webpage.de/wp-json/wakecamp/v1/obstacles/map-config');
+define('OBS_SECRET',  'WCR_DS_2026');
+
 function obs_curl(string $url, ?array $postData = null): array {
     $ch = curl_init($url);
     $opts = [
@@ -53,14 +49,13 @@ function obs_curl(string $url, ?array $postData = null): array {
         'code' => $code,
         'json' => json_decode($body ?: '', true),
         'err'  => $err ?: ($code !== 200 ? "HTTP $code" : ''),
+        'body' => $body,
     ];
 }
 
-$WP_API = 'https://wcr-webpage.de/wp-json/wakecamp/v1/obstacles/map-config';
-
 // ── Aktuelle Map-Config laden ──
 $mapCfg = ['lat' => 52.821428, 'lon' => 13.577100, 'zoom' => 17.9];
-$r = obs_curl($WP_API);
+$r = obs_curl(OBS_WP_API);
 if ($r['ok'] && is_array($r['json']) && isset($r['json']['lat'])) {
     $mapCfg = $r['json'];
 }
@@ -73,13 +68,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
     $lon  = (float)str_replace(',', '.', $_POST['map_lon']  ?? '');
     $zoom = (float)str_replace(',', '.', $_POST['map_zoom'] ?? '');
 
-    $r2 = obs_curl($WP_API, ['lat' => $lat, 'lon' => $lon, 'zoom' => $zoom]);
+    $r2 = obs_curl(OBS_WP_API, [
+        'lat'        => $lat,
+        'lon'        => $lon,
+        'zoom'       => $zoom,
+        'wcr_secret' => OBS_SECRET,   // ← Auth-Key
+    ]);
+
     if ($r2['ok'] && !empty($r2['json']['ok'])) {
-        $cfgMsg  = '✓ Karten-Config gespeichert  (zoom ' . number_format($zoom,1) . ' · ' . $lat . ', ' . $lon . ')';
+        $cfgMsg  = '✓ Karten-Config gespeichert (zoom ' . number_format($zoom, 1) . ' · ' . $lat . ', ' . $lon . ')';
         $cfgType = 'ok';
         $mapCfg  = ['lat' => $lat, 'lon' => $lon, 'zoom' => $zoom];
     } else {
-        $cfgMsg  = '✗ Fehler: ' . ($r2['err'] ?: 'Unbekannt');
+        $debug   = $r2['body'] ? ' — ' . htmlspecialchars(substr($r2['body'], 0, 120)) : '';
+        $cfgMsg  = '✗ Fehler: ' . ($r2['err'] ?: 'Unbekannt') . $debug;
         $cfgType = 'error';
     }
 }
@@ -160,50 +162,20 @@ $maxRows = max(20, count($rows) + 3);
     }
     .mcp-card h2 { margin:0 0 4px; font-size:16px; font-weight:700; }
     .mcp-card .sub { font-size:12px; color:#86868b; margin-bottom:18px; }
-    .mcp-grid {
-      display:grid;
-      grid-template-columns:320px 1fr;
-      gap:20px;
-      align-items:start;
-    }
+    .mcp-grid { display:grid; grid-template-columns:320px 1fr; gap:20px; align-items:start; }
     .mcp-sliders { display:flex; flex-direction:column; gap:16px; }
-    .sl-row label {
-      display:flex; justify-content:space-between;
-      font-size:12px; font-weight:600; color:#1d1d1f; margin-bottom:5px;
-    }
-    .sl-row label span {
-      font-family:monospace; font-size:12px;
-      background:#f0f4ff; color:#0057d9;
-      padding:1px 8px; border-radius:20px;
-    }
-    .sl-row input[type=range] {
-      width:100%; height:5px; -webkit-appearance:none; appearance:none;
-      border-radius:4px; outline:none; cursor:pointer;
-      background:linear-gradient(90deg,#0071e3 0%,#e5e5ea 0%);
-    }
-    .sl-row input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance:none; width:16px; height:16px;
-      border-radius:50%; background:#0071e3;
-      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer;
-    }
+    .sl-row label { display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:#1d1d1f; margin-bottom:5px; }
+    .sl-row label span { font-family:monospace; font-size:12px; background:#f0f4ff; color:#0057d9; padding:1px 8px; border-radius:20px; }
+    .sl-row input[type=range] { width:100%; height:5px; -webkit-appearance:none; appearance:none; border-radius:4px; outline:none; cursor:pointer; }
+    .sl-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#0071e3; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer; }
     .sl-hint { font-size:10px; color:#aeaeb2; margin-top:3px; }
-    #mcp-map {
-      width:100%; height:320px;
-      border-radius:10px; border:1px solid #e5e5ea; overflow:hidden;
-    }
+    #mcp-map { width:100%; height:320px; border-radius:10px; border:1px solid #e5e5ea; overflow:hidden; }
     .mcp-actions { display:flex; gap:10px; margin-top:16px; }
-    .mcp-hint-bar {
-      font-size:11px; color:#86868b; margin-top:8px;
-      display:flex; align-items:center; gap:6px;
-    }
-    #mcp-coords {
-      font-family:monospace; font-size:11px; color:#0057d9;
-      background:#f0f4ff; padding:2px 8px; border-radius:12px;
-    }
-    .cfg-msg { font-size:12px; margin-top:10px; min-height:18px; padding:5px 10px; border-radius:6px; }
+    .mcp-hint-bar { font-size:11px; color:#86868b; margin-top:8px; display:flex; align-items:center; gap:6px; }
+    #mcp-coords { font-family:monospace; font-size:11px; color:#0057d9; background:#f0f4ff; padding:2px 8px; border-radius:12px; }
+    .cfg-msg { font-size:12px; margin-top:10px; padding:5px 10px; border-radius:6px; }
     .cfg-msg.ok    { background:rgba(52,199,89,.10); color:#1a7a30; border:1px solid rgba(52,199,89,.25); }
-    .cfg-msg.error { background:rgba(255,59,48,.08); color:#c0392b; border:1px solid rgba(255,59,48,.2); }
-
+    .cfg-msg.error { background:rgba(255,59,48,.08); color:#c0392b; border:1px solid rgba(255,59,48,.2); word-break:break-all; }
     .obs-wrapper { max-width:1180px; }
     .obs-table { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,.04); }
     .obs-table th, .obs-table td { padding:6px 8px; border-bottom:1px solid #f0f0f3; text-align:left; vertical-align:middle; }
@@ -230,48 +202,36 @@ $maxRows = max(20, count($rows) + 3);
     <h1>🏄 <?= htmlspecialchars($PAGE_TITLE) ?></h1>
   </div>
 
-  <!-- ═══════════ SEKTION 1: KARTEN-CONFIG ═══════════ -->
+  <!-- SEKTION 1: KARTEN-CONFIG -->
   <div class="mcp-card">
     <h2>🗺️ Karten-Einstellungen</h2>
-    <p class="sub">
-      Zoom, Mittelpunkt für <code>[wcr_obstacles_map]</code>.<br>
-      Karte ziehen oder klicken → Koordinaten übernehmen → <strong>Karten-Config speichern</strong>.
-    </p>
+    <p class="sub">Zoom + Mittelpunkt für <code>[wcr_obstacles_map]</code>. Karte ziehen/klicken → <strong>Karten-Config speichern</strong>.</p>
 
-    <!-- Karten-Config wird als normales Form-POST über PHP cURL gespeichert -->
     <form method="POST">
       <input type="hidden" name="save_map_config" value="1">
 
       <div class="mcp-grid">
-
-        <!-- Slider -->
         <div class="mcp-sliders">
 
           <div class="sl-row">
             <label>🔍 Zoom <span id="lbl-zoom"><?= number_format((float)$mapCfg['zoom'], 1) ?></span></label>
-            <input type="range" id="sl-zoom" name="_zoom_vis"
-                   min="10" max="21" step="0.1"
-                   value="<?= hv($mapCfg['zoom']) ?>">
+            <input type="range" id="sl-zoom" min="10" max="21" step="0.1" value="<?= hv($mapCfg['zoom']) ?>">
             <input type="hidden" id="map_zoom" name="map_zoom" value="<?= hv($mapCfg['zoom']) ?>">
             <div class="sl-hint">Empfohlen: 16–19 · Standard: 17.9</div>
           </div>
 
           <div class="sl-row">
-            <label>📍 Latitude (N–S) <span id="lbl-lat"><?= $mapCfg['lat'] ?></span></label>
-            <input type="range" id="sl-lat" name="_lat_vis"
-                   min="52.75" max="52.90" step="0.0001"
-                   value="<?= hv($mapCfg['lat']) ?>">
+            <label>📍 Latitude <span id="lbl-lat"><?= hv($mapCfg['lat']) ?></span></label>
+            <input type="range" id="sl-lat" min="52.75" max="52.90" step="0.0001" value="<?= hv($mapCfg['lat']) ?>">
             <input type="hidden" id="map_lat" name="map_lat" value="<?= hv($mapCfg['lat']) ?>">
-            <div class="sl-hint">Nord-Süd</div>
+            <div class="sl-hint">Nord–Süd</div>
           </div>
 
           <div class="sl-row">
-            <label>📍 Longitude (W–O) <span id="lbl-lon"><?= $mapCfg['lon'] ?></span></label>
-            <input type="range" id="sl-lon" name="_lon_vis"
-                   min="13.50" max="13.65" step="0.0001"
-                   value="<?= hv($mapCfg['lon']) ?>">
+            <label>📍 Longitude <span id="lbl-lon"><?= hv($mapCfg['lon']) ?></span></label>
+            <input type="range" id="sl-lon" min="13.50" max="13.65" step="0.0001" value="<?= hv($mapCfg['lon']) ?>">
             <input type="hidden" id="map_lon" name="map_lon" value="<?= hv($mapCfg['lon']) ?>">
-            <div class="sl-hint">West-Ost</div>
+            <div class="sl-hint">West–Ost</div>
           </div>
 
           <div class="mcp-actions">
@@ -280,25 +240,20 @@ $maxRows = max(20, count($rows) + 3);
           </div>
         </div>
 
-        <!-- Live-Vorschau -->
         <div>
           <div id="mcp-map"></div>
-          <div class="mcp-hint-bar">
-            Klick auf Karte = neues Zentrum &nbsp;·&nbsp;
-            <span id="mcp-coords"><?= hv($mapCfg['lat']) ?>, <?= hv($mapCfg['lon']) ?> · zoom <?= hv($mapCfg['zoom']) ?></span>
-          </div>
+          <div class="mcp-hint-bar">Klick auf Karte = neues Zentrum &nbsp;·&nbsp; <span id="mcp-coords"><?= hv($mapCfg['lat']) ?>, <?= hv($mapCfg['lon']) ?> · zoom <?= hv($mapCfg['zoom']) ?></span></div>
         </div>
-
       </div>
 
       <?php if ($cfgMsg): ?>
-        <div class="cfg-msg <?= $cfgType ?>"><?= htmlspecialchars($cfgMsg) ?></div>
+        <div class="cfg-msg <?= $cfgType ?>"><?= $cfgMsg ?></div>
       <?php endif; ?>
 
     </form>
   </div>
 
-  <!-- ═══════════ SEKTION 2: OBSTACLES-TABELLE ═══════════ -->
+  <!-- SEKTION 2: OBSTACLES-TABELLE -->
   <p class="obs-hint">Verwalte bis zu 20 Obstacles. Position in Prozent (0–100) bezogen auf die Hintergrundkarte.</p>
 
   <?php if ($saveMsg): ?>
@@ -310,49 +265,35 @@ $maxRows = max(20, count($rows) + 3);
     <table class="obs-table">
       <thead>
         <tr>
-          <th class="obs-id">ID</th>
-          <th>Name</th>
-          <th>Typ</th>
-          <th style="width:90px;">Pos X %</th>
-          <th style="width:90px;">Pos Y %</th>
-          <th style="width:80px;">Rotation</th>
-          <th>Icon‑URL (Top‑View)</th>
+          <th class="obs-id">ID</th><th>Name</th><th>Typ</th>
+          <th style="width:90px;">Pos X %</th><th style="width:90px;">Pos Y %</th>
+          <th style="width:80px;">Rotation</th><th>Icon‑URL (Top‑View)</th>
           <th class="obs-active">Aktiv</th>
         </tr>
       </thead>
       <tbody>
         <?php $i = 0; foreach ($rows as $row): $i++; ?>
         <tr>
-          <td class="obs-id">
-            <input type="hidden" name="id[]" value="<?= (int)$row['id'] ?>">
-            #<?= (int)$row['id'] ?>
-          </td>
+          <td class="obs-id"><input type="hidden" name="id[]" value="<?= (int)$row['id'] ?>">#<?= (int)$row['id'] ?></td>
           <td><input type="text"   name="name[]"     value="<?= htmlspecialchars($row['name']) ?>"></td>
           <td><input type="text"   name="type[]"     value="<?= htmlspecialchars($row['type']) ?>"></td>
           <td><input type="number" name="pos_x[]"    value="<?= htmlspecialchars($row['pos_x']) ?>"    min="0" max="100" step="0.1"></td>
           <td><input type="number" name="pos_y[]"    value="<?= htmlspecialchars($row['pos_y']) ?>"    min="0" max="100" step="0.1"></td>
           <td><input type="number" name="rotation[]" value="<?= htmlspecialchars($row['rotation']) ?>" step="1"></td>
           <td><input type="text"   name="icon_url[]" value="<?= htmlspecialchars($row['icon_url']) ?>"></td>
-          <td class="obs-active">
-            <input type="checkbox" name="active[<?= $i-1 ?>]" value="1" <?= $row['active'] ? 'checked' : '' ?>>
-          </td>
+          <td class="obs-active"><input type="checkbox" name="active[<?= $i-1 ?>]" value="1" <?= $row['active'] ? 'checked' : '' ?>></td>
         </tr>
         <?php endforeach; ?>
         <?php for (; $i < $maxRows; $i++): ?>
         <tr>
-          <td class="obs-id">
-            <input type="hidden" name="id[]" value="0">
-            #neu
-          </td>
+          <td class="obs-id"><input type="hidden" name="id[]" value="0">#neu</td>
           <td><input type="text"   name="name[]"     value=""></td>
           <td><input type="text"   name="type[]"     value=""></td>
           <td><input type="number" name="pos_x[]"    value=""  min="0" max="100" step="0.1"></td>
           <td><input type="number" name="pos_y[]"    value=""  min="0" max="100" step="0.1"></td>
           <td><input type="number" name="rotation[]" value="0" step="1"></td>
           <td><input type="text"   name="icon_url[]" value=""></td>
-          <td class="obs-active">
-            <input type="checkbox" name="active[<?= $i ?>]" value="1" checked>
-          </td>
+          <td class="obs-active"><input type="checkbox" name="active[<?= $i ?>]" value="1" checked></td>
         </tr>
         <?php endfor; ?>
       </tbody>
@@ -368,92 +309,33 @@ $maxRows = max(20, count($rows) + 3);
 <script>
 (function () {
     var DEF = { lat: 52.821428, lon: 13.577100, zoom: 17.9 };
+    var slZ=document.getElementById('sl-zoom'), slLat=document.getElementById('sl-lat'), slLon=document.getElementById('sl-lon');
+    var lblZ=document.getElementById('lbl-zoom'), lblLt=document.getElementById('lbl-lat'), lblLn=document.getElementById('lbl-lon');
+    var cords=document.getElementById('mcp-coords');
+    var hZ=document.getElementById('map_zoom'), hLat=document.getElementById('map_lat'), hLon=document.getElementById('map_lon');
 
-    var slZ   = document.getElementById('sl-zoom');
-    var slLat = document.getElementById('sl-lat');
-    var slLon = document.getElementById('sl-lon');
-    var lblZ  = document.getElementById('lbl-zoom');
-    var lblLt = document.getElementById('lbl-lat');
-    var lblLn = document.getElementById('lbl-lon');
-    var cords = document.getElementById('mcp-coords');
-    var hZ    = document.getElementById('map_zoom');
-    var hLat  = document.getElementById('map_lat');
-    var hLon  = document.getElementById('map_lon');
+    var map = L.map('mcp-map',{zoomControl:true,dragging:true,scrollWheelZoom:true,zoomSnap:0.1,zoomDelta:0.1})
+               .setView([parseFloat(slLat.value),parseFloat(slLon.value)],parseFloat(slZ.value));
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+        {attribution:'© OpenStreetMap © CARTO',maxZoom:21}).addTo(map);
+    var cross=L.divIcon({html:'<svg width="22" height="22" viewBox="0 0 22 22"><line x1="11" y1="0" x2="11" y2="22" stroke="#0071e3" stroke-width="2"/><line x1="0" y1="11" x2="22" y2="11" stroke="#0071e3" stroke-width="2"/><circle cx="11" cy="11" r="3" fill="#0071e3"/></svg>',className:'',iconAnchor:[11,11]});
+    var marker=L.marker([parseFloat(slLat.value),parseFloat(slLon.value)],{icon:cross,interactive:false}).addTo(map);
 
-    /* Leaflet */
-    var map = L.map('mcp-map', {
-        zoomControl: true, dragging: true,
-        scrollWheelZoom: true, zoomSnap: 0.1, zoomDelta: 0.1
-    }).setView([parseFloat(slLat.value), parseFloat(slLon.value)], parseFloat(slZ.value));
+    function grad(sl){var p=(sl.value-sl.min)/(sl.max-sl.min)*100;sl.style.background='linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';}
+    [slZ,slLat,slLon].forEach(grad);
 
-    L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
-        { attribution: '© OpenStreetMap © CARTO', maxZoom: 21 }
-    ).addTo(map);
-
-    var cross = L.divIcon({
-        html: '<svg width="22" height="22" viewBox="0 0 22 22">'
-            + '<line x1="11" y1="0" x2="11" y2="22" stroke="#0071e3" stroke-width="2"/>'
-            + '<line x1="0" y1="11" x2="22" y2="11" stroke="#0071e3" stroke-width="2"/>'
-            + '<circle cx="11" cy="11" r="3" fill="#0071e3"/></svg>',
-        className: '', iconAnchor: [11, 11]
-    });
-    var marker = L.marker(
-        [parseFloat(slLat.value), parseFloat(slLon.value)],
-        { icon: cross, interactive: false }
-    ).addTo(map);
-
-    function grad(sl) {
-        var p = (sl.value - sl.min) / (sl.max - sl.min) * 100;
-        sl.style.background = 'linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';
+    function sync(){
+        var z=parseFloat(slZ.value),lt=parseFloat(slLat.value),ln=parseFloat(slLon.value);
+        lblZ.textContent=z.toFixed(1); lblLt.textContent=lt.toFixed(6); lblLn.textContent=ln.toFixed(6);
+        cords.textContent=lt.toFixed(6)+', '+ln.toFixed(6)+'  zoom: '+z.toFixed(1);
+        hZ.value=z.toFixed(1); hLat.value=lt.toFixed(6); hLon.value=ln.toFixed(6);
+        map.setView([lt,ln],z); marker.setLatLng([lt,ln]);
+        [slZ,slLat,slLon].forEach(grad);
     }
-    [slZ, slLat, slLon].forEach(grad);
-
-    function sync() {
-        var z  = parseFloat(slZ.value);
-        var lt = parseFloat(slLat.value);
-        var ln = parseFloat(slLon.value);
-        lblZ.textContent  = z.toFixed(1);
-        lblLt.textContent = lt.toFixed(6);
-        lblLn.textContent = ln.toFixed(6);
-        cords.textContent = lt.toFixed(6) + ', ' + ln.toFixed(6) + '  zoom: ' + z.toFixed(1);
-        /* hidden inputs für den Form-POST aktualisieren */
-        hZ.value   = z.toFixed(1);
-        hLat.value = lt.toFixed(6);
-        hLon.value = ln.toFixed(6);
-        map.setView([lt, ln], z);
-        marker.setLatLng([lt, ln]);
-        [slZ, slLat, slLon].forEach(grad);
-    }
-    slZ.addEventListener('input',   sync);
-    slLat.addEventListener('input', sync);
-    slLon.addEventListener('input', sync);
-
-    /* Karte ziehen → Slider */
-    map.on('moveend zoomend', function () {
-        var c = map.getCenter();
-        slLat.value = c.lat.toFixed(6);
-        slLon.value = c.lng.toFixed(6);
-        slZ.value   = map.getZoom().toFixed(1);
-        sync();
-    });
-
-    /* Klick → neues Zentrum */
-    map.on('click', function (e) {
-        slLat.value = e.latlng.lat.toFixed(6);
-        slLon.value = e.latlng.lng.toFixed(6);
-        sync();
-        map.panTo([parseFloat(slLat.value), parseFloat(slLon.value)]);
-    });
-
-    /* Reset */
-    document.getElementById('btn-mcp-reset').addEventListener('click', function () {
-        slZ.value   = DEF.zoom;
-        slLat.value = DEF.lat;
-        slLon.value = DEF.lon;
-        sync();
-    });
-
+    slZ.addEventListener('input',sync); slLat.addEventListener('input',sync); slLon.addEventListener('input',sync);
+    map.on('moveend zoomend',function(){var c=map.getCenter();slLat.value=c.lat.toFixed(6);slLon.value=c.lng.toFixed(6);slZ.value=map.getZoom().toFixed(1);sync();});
+    map.on('click',function(e){slLat.value=e.latlng.lat.toFixed(6);slLon.value=e.latlng.lng.toFixed(6);sync();map.panTo([parseFloat(slLat.value),parseFloat(slLon.value)]);});
+    document.getElementById('btn-mcp-reset').addEventListener('click',function(){slZ.value=DEF.zoom;slLat.value=DEF.lat;slLon.value=DEF.lon;sync();});
     sync();
 })();
 </script>
