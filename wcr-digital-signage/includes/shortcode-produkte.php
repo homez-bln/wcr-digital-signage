@@ -89,14 +89,10 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
 
             <!-- Cards -->
             <div class="wcr-produkte-grid">
-                <?php foreach ( $produkte as $i => $p ) :
-                    $num = (int) $ids[ $i ];
-                ?>
+                <?php foreach ( $produkte as $i => $p ) : ?>
                 <div class="wcr-produkte-card<?php echo ( ! $p ) ? ' is-error' : ''; ?>">
 
                     <?php if ( $p ) : ?>
-
-                        <div class="wcr-produkte-num"># <?php echo esc_html( $num ); ?></div>
 
                         <div class="wcr-produkte-name">
                             <?php echo esc_html( $p['produkt'] ?? '–' ); ?>
@@ -125,7 +121,6 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
 
                     <?php else : ?>
 
-                        <div class="wcr-produkte-num"># <?php echo esc_html( $num ?: '?' ); ?></div>
                         <div class="wcr-produkte-name">Produkt nicht gefunden</div>
 
                     <?php endif; ?>
