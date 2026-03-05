@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    WCR Obstacles Map – wcr-obstacles-map.js
-   PNG-Icons mit Fallback + separate pos für Landscape/Portrait
+   PNG rotiert, Label bleibt horizontal
 ═══════════════════════════════════════════════════════ */
 (function () {
 
@@ -131,11 +131,13 @@
                 if (py < 0) py = parseFloat(o.pos_y||0);
 
                 if (lat !== 0 && lon !== 0) {
-                    // ── Geo-Marker mit PNG + Emoji-Fallback ──
-                    var iconHtml = '<div style="transform:rotate('+rot+'deg);display:flex;flex-direction:column;align-items:center;gap:4px;">';
+                    // ── Geo-Marker: PNG rotiert, Label bleibt horizontal ──
+                    var iconHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">';
                     
+                    // Icon-Container (nur dieser rotiert)
+                    iconHtml += '<div style="transform:rotate('+rot+'deg);">';
                     if (ico) {
-                        // PNG-Bild mit Emoji als Fallback bei Ladefehler
+                        // PNG mit Fallback
                         iconHtml += '<div style="position:relative;width:'+ICON_SIZE+'px;height:'+ICON_SIZE+'px;">';
                         iconHtml += '<img src="'+ico+'" '
                                  + 'style="width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));position:absolute;top:0;left:0" '
@@ -143,10 +145,11 @@
                         iconHtml += '<div style="display:none;font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.8));text-align:center">'+emoji+'</div>';
                         iconHtml += '</div>';
                     } else {
-                        // Nur Emoji
                         iconHtml += '<div style="font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.8))">'+emoji+'</div>';
                     }
+                    iconHtml += '</div>';
                     
+                    // Label außerhalb → keine Rotation
                     if (label) iconHtml += '<span style="font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em">'+label+'</span>';
                     iconHtml += '</div>';
                     
@@ -160,16 +163,20 @@
                     }).addTo(map);
 
                 } else if (px >= 0 && px <= 100 && py >= 0 && py <= 100) {
-                    // ── Pixel-Position — in Overlay (immer über Karte) ──
+                    // ── Pixel-Position: PNG rotiert, Label horizontal ──
                     var d = document.createElement('div');
                     d.className = 'wcr-obstacle';
                     d.style.cssText = [
                         'position:absolute',
                         'left:'+(px/100*W)+'px',
                         'top:' +(py/100*H)+'px',
-                        'transform:translate(-50%,-50%)'+(rot?' rotate('+rot+'deg)':''),
+                        'transform:translate(-50%,-50%)',
                         'display:flex','flex-direction:column','align-items:center','gap:4px','pointer-events:none'
                     ].join(';');
+                    
+                    // Icon-Container (rotiert)
+                    var iconWrap = document.createElement('div');
+                    iconWrap.style.transform = 'rotate('+rot+'deg)';
                     
                     if (ico) {
                         // PNG mit Fallback
@@ -183,15 +190,16 @@
                             fallback.style.cssText = 'font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
                             this.parentNode.insertBefore(fallback, this);
                         };
-                        d.appendChild(imgEl);
+                        iconWrap.appendChild(imgEl);
                     } else {
-                        // Nur Emoji
                         var iconDiv = document.createElement('div');
                         iconDiv.textContent = emoji;
                         iconDiv.style.cssText = 'font-size:'+FONT_SIZE+';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
-                        d.appendChild(iconDiv);
+                        iconWrap.appendChild(iconDiv);
                     }
+                    d.appendChild(iconWrap);
                     
+                    // Label (nicht rotiert)
                     if (label) {
                         var lblEl = document.createElement('span');
                         lblEl.textContent = label;
