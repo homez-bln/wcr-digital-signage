@@ -93,33 +93,13 @@ if (!function_exists('opening_hours_pixel_perfect')) {
 .oh-stoerer .st-time  { display: block; font-size: 13px; letter-spacing: .04em; }
 .oh-weekend-sep td { border-top: 1px solid rgba(255,255,255,.10) !important; padding-top: 12px !important; }
 .oh-table td.col-5-unit { white-space: nowrap; }
-
-/* ── Heute: Glow + fett, kein Pfeil ── */
-.oh-table tr.today {
-    background: rgba(93,156,93,.12);
-    box-shadow: 0 0 18px rgba(93,156,93,.25);
-    position: relative;
-}
-.oh-table tr.today td {
-    color: #fff !important;
-    font-weight: 700;
-}
-
-/* ── Updated-Badge: andere Tage die heute geändert wurden ── */
+.oh-table tr.today { background: rgba(93,156,93,.12); box-shadow: 0 0 18px rgba(93,156,93,.25); position: relative; }
+.oh-table tr.today td { color: #fff !important; font-weight: 700; }
 .oh-updated-badge {
-    display: inline-block;
-    vertical-align: middle;
-    margin-left: 8px;
-    padding: 2px 7px;
-    background: rgba(255,200,0,.18);
-    border: 1px solid rgba(255,200,0,.45);
-    color: #ffc800;
-    font-size: 11px;
-    font-weight: 700;
-    border-radius: 20px;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    white-space: nowrap;
+    display: inline-block; vertical-align: middle; margin-left: 8px;
+    padding: 2px 7px; background: rgba(255,200,0,.18); border: 1px solid rgba(255,200,0,.45);
+    color: #ffc800; font-size: 11px; font-weight: 700; border-radius: 20px;
+    letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
     animation: oh-updated-pulse 2s ease-in-out infinite;
 }
 @keyframes oh-updated-pulse {
@@ -308,12 +288,22 @@ if (!function_exists('wcr_db_item_shortcode')) {
 
 // ════════════════════════════════════════════════════════
 // OBSTACLES MAP  [wcr_obstacles_map]
-// Identische Struktur wie wcr_sc_windmap:
-//   #wcr-obstacles-map-wrap  position:relative; 1920×1080
-//   #wcr-obstacles-map       position:absolute; inset:0; 1920×1080
+//
+// Verwendung:
+//   [wcr_obstacles_map]                   → Landscape 1920×1080
+//   [wcr_obstacles_map mode="landscape"]   → Landscape 1920×1080
+//   [wcr_obstacles_map mode="portrait"]    → Portrait  1080×1920
 // ════════════════════════════════════════════════════════
 if (!function_exists('wcr_sc_obstacles_map')) {
     function wcr_sc_obstacles_map($atts) {
+
+        $atts = shortcode_atts([
+            'mode' => 'landscape',   // 'landscape' | 'portrait'
+        ], $atts, 'wcr_obstacles_map');
+
+        $is_portrait = (strtolower(trim($atts['mode'])) === 'portrait');
+        $W = $is_portrait ? 1080 : 1920;
+        $H = $is_portrait ? 1920 : 1080;
 
         // ── Assets laden ──
         wcr_ds_load_leaflet();
@@ -361,47 +351,48 @@ if (!function_exists('wcr_sc_obstacles_map')) {
         }
 
         $type_icons = [
-            'kicker'  => '🚀', 'rail' => '🟧', 'box' => '🟦',
-            'fun'     => '⭐',  'slider' => '🟩', 'default' => '🟣',
+            'kicker' => '🚀', 'rail' => '🟧', 'box' => '🟦',
+            'fun'    => '⭐',  'slider' => '🟩', 'default' => '🟣',
         ];
+
+        $icon_size = $is_portrait ? 60   : 44;
+        $font_size = $is_portrait ? '36px' : '28px';
+        $lbl_size  = $is_portrait ? '15px' : '11px';
+
+        $wrap_class = 'wcr-obstacles-map-wrap' . ($is_portrait ? ' portrait' : '');
 
         ob_start();
 
-        // ── Wrap: identisch zu #wcr-windmap-wrap ──
-        echo '<div id="wcr-obstacles-map-wrap">';
-
-        // ── Map-Div: identisch zu #wcr-windmap-wrap #map ──
+        echo '<div id="wcr-obstacles-map-wrap" class="' . esc_attr($wrap_class) . '">';
         echo '<div id="wcr-obstacles-map" data-api="' . esc_url($api_url) . '"></div>';
 
-        // ── Obstacles als absolute divs im Wrap ──
+        // ── PHP-Fallback Obstacles (nur pos_x/pos_y, kein lat/lon) ──
         foreach ($obstacles as $obs) {
-            $lat  = (float)($obs['lat']      ?? 0);
-            $lon  = (float)($obs['lon']      ?? 0);
-            // pos_x/pos_y sind Prozent → in Pixel umrechnen (1920×1080)
-            $px   = (float)($obs['pos_x']    ?? 50) / 100 * 1920;
-            $py   = (float)($obs['pos_y']    ?? 50) / 100 * 1080;
-            $rot  = (float)($obs['rotation'] ?? 0);
-            $ico  = !empty($obs['icon_url']) ? esc_url($obs['icon_url']) : '';
-            $lbl  = esc_html($obs['name'] ?? '');
-            $type = strtolower(trim($obs['type'] ?? 'default'));
+            $lat = (float)($obs['lat'] ?? 0);
+            $lon = (float)($obs['lon'] ?? 0);
+            if ($lat != 0 || $lon != 0) continue; // Geo-Obstacles macht JS
+
+            $px    = (float)($obs['pos_x']    ?? 50) / 100 * $W;
+            $py    = (float)($obs['pos_y']    ?? 50) / 100 * $H;
+            $rot   = (float)($obs['rotation'] ?? 0);
+            $ico   = !empty($obs['icon_url']) ? esc_url($obs['icon_url']) : '';
+            $lbl   = esc_html($obs['name'] ?? '');
+            $type  = strtolower(trim($obs['type'] ?? 'default'));
             $emoji = $type_icons[$type] ?? $type_icons['default'];
 
-            // Nur pos%-Obstacles als PHP-Fallback rendern (lat/lon macht JS via Leaflet)
-            if ($lat != 0 || $lon != 0) continue;
-
-            $posStyle  = 'left:' . $px . 'px;top:' . $py . 'px;';
             $transform = 'translate(-50%,-50%)';
             if ($rot) $transform .= ' rotate(' . $rot . 'deg)';
-            $posStyle .= 'transform:' . $transform . ';';
 
-            $iconStyle   = $ico ? 'background-image:url(' . $ico . ');width:44px;height:44px;background-size:contain;background-repeat:no-repeat;' : '';
-            $iconContent = $ico ? '' : $emoji;
+            $icon_style   = $ico
+                ? 'background-image:url(' . $ico . ');width:' . $icon_size . 'px;height:' . $icon_size . 'px;background-size:contain;background-repeat:no-repeat;'
+                : 'font-size:' . $font_size . ';line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))';
+            $icon_content = $ico ? '' : $emoji;
 
-            echo '<div class="wcr-obstacle' . ($is_placeholder ? ' is-placeholder' : '') . '"
-                 style="' . $posStyle . '"
-                 data-type="' . esc_attr($type) . '">';
-            echo '<div class="wcr-obstacle-icon" style="' . $iconStyle . 'font-size:28px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))">' . $iconContent . '</div>';
-            echo '<span style="font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap">' . $lbl . '</span>';
+            echo '<div class="wcr-obstacle' . ($is_placeholder ? ' is-placeholder' : '') . '"'
+               . ' style="position:absolute;left:' . $px . 'px;top:' . $py . 'px;transform:' . $transform . ';z-index:500;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none"'
+               . ' data-type="' . esc_attr($type) . '">';
+            echo '<div style="' . $icon_style . '">' . $icon_content . '</div>';
+            echo '<span style="font-size:' . $lbl_size . ';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap">' . $lbl . '</span>';
             echo '</div>';
         }
 

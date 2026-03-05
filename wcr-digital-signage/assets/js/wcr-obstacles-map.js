@@ -1,14 +1,13 @@
 /* ═══════════════════════════════════════════════════════
    WCR Obstacles Map – wcr-obstacles-map.js
-   Identische Struktur wie wcr-windmap.js
-   Map: position:absolute; inset:0; width:1920px; height:1080px
+   Unterstützt Portrait (1080×1920) und Landscape (1920×1080)
+   Wird via data-mode="portrait|landscape" gesteuert
 ═══════════════════════════════════════════════════════ */
 (function () {
 
     const MAP_LAT = 52.821428251670844;
     const MAP_LON = 13.5770999960116;
     const ZOOM    = 17.9;
-    const W = 1920, H = 1080;
 
     const STYLES = [
         {
@@ -54,22 +53,26 @@
         default: '🟣'
     };
 
-    var ICON_SIZE = 44;
-    var FONT_SIZE = '28px';
-    var LBL_SIZE  = '11px';
-    var BTN_FONT  = '13px';
-    var BTN_PAD   = '5px 12px';
-
     function initObstaclesMap() {
-        /* Suche den map-div innerhalb des Wraps */
-        var el = document.getElementById('wcr-obstacles-map');
-        if (!el) return;
-        if (!window.L) { console.warn('Leaflet nicht geladen'); return; }
+        var wrap = document.getElementById('wcr-obstacles-map-wrap');
+        var el   = document.getElementById('wcr-obstacles-map');
+        if (!el || !window.L) return;
+
+        /* ── Portrait oder Landscape? ── */
+        var IS_PORTRAIT = wrap && wrap.classList.contains('portrait');
+        var W = IS_PORTRAIT ? 1080 : 1920;
+        var H = IS_PORTRAIT ? 1920 : 1080;
+
+        var ICON_SIZE = IS_PORTRAIT ? 60   : 44;
+        var FONT_SIZE = IS_PORTRAIT ? '36px' : '28px';
+        var LBL_SIZE  = IS_PORTRAIT ? '15px' : '11px';
+        var BTN_FONT  = IS_PORTRAIT ? '18px' : '13px';
+        var BTN_PAD   = IS_PORTRAIT ? '10px 20px' : '5px 12px';
 
         var apiUrl = (window.wcrObstaclesMap && window.wcrObstaclesMap.apiUrl)
                      || el.getAttribute('data-api');
 
-        /* ── Leaflet Map – exakt wie Windmap ── */
+        /* ── Leaflet Map ── */
         var map = L.map(el, {
             zoomControl:        false,
             attributionControl: true,
@@ -93,7 +96,6 @@
         }).addTo(map);
 
         /* ── Style-Switcher ── */
-        var wrap = document.getElementById('wcr-obstacles-map-wrap');
         var switcher = document.createElement('div');
         switcher.className = 'wcr-style-switcher';
 
@@ -163,6 +165,7 @@
                 var ico   = o.icon_url || '';
 
                 if (lat !== 0 && lon !== 0) {
+                    /* ── Geo-Koordinaten via Leaflet Marker ── */
                     var iconHtml = '<div style="transform:rotate(' + rot + 'deg);display:flex;flex-direction:column;align-items:center;gap:4px;">';
                     if (ico) {
                         iconHtml += '<img src="' + ico + '" style="width:' + ICON_SIZE + 'px;height:' + ICON_SIZE + 'px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))"/>';
@@ -181,6 +184,7 @@
                     L.marker([lat, lon], { icon: divIcon }).addTo(map);
 
                 } else if (px !== 0 || py !== 0) {
+                    /* ── Prozent-Position → absolute px im Wrap ── */
                     var container = wrap || el;
                     var d = document.createElement('div');
                     d.className = 'wcr-obstacle';
@@ -218,7 +222,6 @@
             });
         }
 
-        /* Platzhalter-Obstacles aus PHP entfernen, echte laden */
         if (apiUrl) {
             fetch(apiUrl)
                 .then(function (r) { return r.ok ? r.json() : []; })

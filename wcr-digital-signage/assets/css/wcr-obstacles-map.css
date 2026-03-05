@@ -1,28 +1,37 @@
 /* ═══════════════════════════════════════════════════════
    WCR Obstacles Map CSS
-   Identische Struktur wie #wcr-windmap-wrap
+   [wcr_obstacles_map]             → Landscape 1920×1080
+   [wcr_obstacles_map mode=portrait] → Portrait  1080×1920
 ═══════════════════════════════════════════════════════ */
 
-/* ── Wrap: fixer 1920×1080 Container ── */
+/* ── LANDSCAPE (Standard) ── */
 #wcr-obstacles-map-wrap {
-    position: relative;
-    width: 1920px;
-    height: 1080px;
-    overflow: hidden;
+    position:   relative;
+    width:      1920px;
+    height:     1080px;
+    overflow:   hidden;
     background: #e8e0d8;
     font-family: 'Segoe UI', system-ui, sans-serif;
 }
-
-/* ── Map: exakt wie #wcr-windmap-wrap #map ── */
 #wcr-obstacles-map-wrap #wcr-obstacles-map {
     position: absolute;
-    inset: 0;
-    width: 1920px;
-    height: 1080px;
-    z-index: 0;
+    inset:    0;
+    width:    1920px;
+    height:   1080px;
+    z-index:  0;
 }
 
-/* ══ Leaflet: exakt wie Windmap – NUR border/margin/will-change ══ */
+/* ── PORTRAIT ── */
+#wcr-obstacles-map-wrap.portrait {
+    width:  1080px;
+    height: 1920px;
+}
+#wcr-obstacles-map-wrap.portrait #wcr-obstacles-map {
+    width:  1080px;
+    height: 1920px;
+}
+
+/* ══ Leaflet ══ */
 #wcr-obstacles-map-wrap .leaflet-container {
     background: #e8e0d8 !important;
 }
@@ -40,22 +49,28 @@
 }
 #wcr-obstacles-map-wrap .leaflet-control-attribution {
     font-size: 9px !important;
-    opacity: 0.4  !important;
+    opacity:   0.4 !important;
 }
 #wcr-obstacles-map-wrap .leaflet-control-zoom {
     display: none;
 }
 
-/* ── Style-Switcher (absolute über der Map) ── */
+/* ── Style-Switcher ── */
 #wcr-obstacles-map-wrap .wcr-style-switcher {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    pointer-events: all;
+    position:        absolute;
+    top:             20px;
+    right:           20px;
+    z-index:         1000;
+    display:         flex;
+    flex-direction:  column;
+    gap:             8px;
+    pointer-events:  all;
+}
+
+/* Portrait: größere Buttons */
+#wcr-obstacles-map-wrap.portrait .wcr-style-switcher button {
+    font-size: 18px !important;
+    padding:   10px 20px !important;
 }
 
 /* ── DivIcon Obstacles ── */
@@ -65,7 +80,7 @@
     box-shadow: none !important;
 }
 
-/* ── Fallback pos%-Obstacles ── */
+/* ── Fallback pos-Obstacles ── */
 .wcr-obstacle {
     position:       absolute;
     display:        flex;
