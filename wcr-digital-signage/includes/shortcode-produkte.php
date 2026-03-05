@@ -10,8 +10,9 @@
  *   id1, id2, id3  – Datenbank-Nummer (Spalte `nummer`) der Produkte
  *   titel          – Überschrift (Standard: "Unsere Empfehlungen")
  *   table          – Optional: Tabelle eingrenzen (food, drinks, cable, camping, extra, ice)
+ *   img1,img2,img3 – Optional: URL zum Produkt-Bild (zeigt Dampf-Effekt darunter)
  *
- * Jede Card zeigt: Produktname · Preis · Menge (falls vorhanden)
+ * Jede Card zeigt: [Bild + Dampf] · Produktname · Preis · Menge
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -26,14 +27,24 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
             'id3'   => '',
             'titel' => 'Unsere Empfehlungen',
             'table' => '',
+            'img1'  => '',
+            'img2'  => '',
+            'img3'  => '',
         ], $atts, 'wcr_produkte' );
 
-        // ── CSS laden ──
+        // ── Assets laden ──
         wp_enqueue_style(
             'wcr-produkte',
             WCR_DS_URL . 'assets/css/wcr-produkte.css',
             [],
             WCR_DS_VERSION
+        );
+        wp_enqueue_script(
+            'wcr-produkte-js',
+            WCR_DS_URL . 'assets/js/wcr-produkte.js',
+            [],
+            WCR_DS_VERSION,
+            true
         );
 
         // ── DB-Verbindung ──
@@ -44,7 +55,6 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
             ? [ $atts['table'] ]
             : $erlaubte_tabellen;
 
-        // ── Hilfsfunktion: Produkt per Nummer aus DB laden ──
         $get_produkt = function( $nummer ) use ( $db, $tabellen ) {
             if ( ! $nummer || ! $db ) return null;
             $id = (int) $nummer;
@@ -62,21 +72,19 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
             return null;
         };
 
-        // ── Produkte laden ──
-        $ids      = [ $atts['id1'], $atts['id2'], $atts['id3'] ];
+        $ids    = [ $atts['id1'],  $atts['id2'],  $atts['id3']  ];
+        $imgs   = [ $atts['img1'], $atts['img2'], $atts['img3'] ];
         $produkte = [];
         foreach ( $ids as $raw_id ) {
             $produkte[] = $get_produkt( $raw_id );
         }
 
-        // ── HTML ausgeben ──
         $titel = esc_html( $atts['titel'] );
 
         ob_start();
         ?>
         <div class="wcr-produkte-wrap">
 
-            <!-- Header -->
             <div class="wcr-produkte-header">
                 <div class="wcr-produkte-header-line"></div>
                 <div class="wcr-produkte-header-inner">
@@ -87,12 +95,23 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
                 <div class="wcr-produkte-header-line right"></div>
             </div>
 
-            <!-- Cards -->
             <div class="wcr-produkte-grid">
-                <?php foreach ( $produkte as $i => $p ) : ?>
+                <?php foreach ( $produkte as $i => $p ) :
+                    $img_url = ! empty( $imgs[ $i ] ) ? esc_url( $imgs[ $i ] ) : '';
+                ?>
                 <div class="wcr-produkte-card<?php echo ( ! $p ) ? ' is-error' : ''; ?>">
 
                     <?php if ( $p ) : ?>
+
+                        <?php if ( $img_url ) : ?>
+                        <div class="wcr-produkte-img-wrap">
+                            <!-- Dampf-Partikel -->
+                            <div class="wcr-steam">
+                                <span></span><span></span><span></span><span></span><span></span>
+                            </div>
+                            <img src="<?php echo $img_url; ?>" alt="<?php echo esc_attr( $p['produkt'] ?? '' ); ?>" loading="eager">
+                        </div>
+                        <?php endif; ?>
 
                         <div class="wcr-produkte-name">
                             <?php echo esc_html( $p['produkt'] ?? '–' ); ?>
