@@ -171,7 +171,6 @@ if (isset($_GET['saved'])) $saveMsg = '✓ ' . (int)$_GET['saved'] . ' Obstacle(
 
 $rows    = $db->query("SELECT id, name, type, icon_url, lat, lon, rotation, active FROM obstacles ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
 $maxRows = max(5, count($rows) + 3);
-$rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -198,21 +197,22 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
     .style-btn.active { border-color:#0071e3; background:#e8f5ff; color:#0057d9; }
     .style-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
     .mcp-actions { display:flex; gap:10px; margin-top:14px; }
-    .mcp-hint-bar { font-size:11px; color:#86868b; margin-top:6px; }
+    .mcp-hint-bar { font-size:11px; color:#86868b; margin-top:6px; line-height:1.5; }
     #mcp-coords { font-family:monospace; font-size:11px; color:#0057d9; }
     .cfg-msg { font-size:12px; margin-top:10px; padding:5px 10px; border-radius:6px; }
     .cfg-msg.ok    { background:rgba(52,199,89,.10); color:#1a7a30; border:1px solid rgba(52,199,89,.25); }
     .cfg-msg.error { background:rgba(255,59,48,.08); color:#c0392b; border:1px solid rgba(255,59,48,.2); word-break:break-all; }
-    /* Obstacle-Tabelle */
     .obs-wrapper { max-width:1280px; }
     .obs-table { width:100%; border-collapse:collapse; font-size:13px; }
     .obs-table th, .obs-table td { padding:5px 6px; border-bottom:1px solid #f0f0f3; text-align:left; vertical-align:middle; }
     .obs-table th { background:#f5f5f7; font-weight:600; font-size:11px; color:#6e6e73; white-space:nowrap; }
-    .obs-table tr.obs-active-row td { background:#eef6ff; }
+    .obs-table tr.obs-row { cursor:pointer; transition:background .1s; }
+    .obs-table tr.obs-row:hover { background:#fafafa; }
+    .obs-table tr.obs-active-row td { background:#eef6ff !important; }
     .obs-table tr.obs-active-row { box-shadow:inset 3px 0 0 #0071e3; }
     .obs-table input[type="text"], .obs-table input[type="number"] { width:100%; box-sizing:border-box; padding:4px 6px; border-radius:6px; border:1px solid #d2d2d7; font-size:12px; }
     .obs-table tr.obs-active-row input.obs-lat,
-    .obs-table tr.obs-active-row input.obs-lon { border-color:#0071e3; background:#dbeafe; }
+    .obs-table tr.obs-active-row input.obs-lon { border-color:#0071e3; background:#dbeafe; font-weight:700; }
     .obs-id { width:36px; color:#9f9fa5; font-size:11px; }
     .obs-active { text-align:center; width:50px; }
     .obs-save-bar { margin-top:14px; display:flex; align-items:center; gap:12px; }
@@ -295,7 +295,7 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
           <div id="mcp-map"></div>
           <div class="mcp-hint-bar">
             <span id="mcp-coords"><?= hv($mapCfg['lat']) ?>, <?= hv($mapCfg['lon']) ?> · zoom <?= hv($mapCfg['zoom']) ?> · rot <?= hv((float)($mapCfg['rot']??0)) ?>°</span><br>
-            <span style="color:#0071e3;">Zeile aktivieren (↓) → Klick auf Karte setzt Obstacle-Position &middot; ohne Auswahl = Karten-Zentrum verschieben</span>
+            <span style="color:#0071e3;">▶ Zeile anklicken (wird blau) → Karte klicken = lat/lon setzen · Marker ziehen = Position ändern · ohne Auswahl = Zentrum verschieben</span>
           </div>
         </div>
       </div>
@@ -308,8 +308,8 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
   <!-- SEKTION 2: OBSTACLES-TABELLE -->
   <div class="obs-hint-box">
     <strong>📍 Obstacle platzieren:</strong>
-    Zeile anklicken (wird blau markiert) → auf die Karte klicken → lat/lon wird automatisch gesetzt.<br>
-    Obstacles mit gesetztem <strong>lat/lon</strong> erscheinen in <em>allen</em> Modi (Landscape + Portrait) korrekt — egal wie die Karte gedreht ist.
+    Zeile anklicken (wird blau) → auf Karte klicken → lat/lon gesetzt. Marker ziehen = Position live ändern.<br>
+    Obstacles mit <strong>lat/lon</strong> erscheinen in allen Modi (Landscape + Portrait) korrekt — egal wie die Karte gedreht ist.
   </div>
 
   <?php if ($saveMsg): ?>
@@ -334,7 +334,7 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
       </thead>
       <tbody id="obs-tbody">
         <?php $i = 0; foreach ($rows as $row): $i++; ?>
-        <tr class="obs-row" data-id="<?= (int)$row['id'] ?>">
+        <tr class="obs-row" data-idx="<?= $i-1 ?>">
           <td class="obs-id"><input type="hidden" name="id[]" value="<?= (int)$row['id'] ?>">#<?= (int)$row['id'] ?></td>
           <td><input type="text" name="name[]" value="<?= htmlspecialchars($row['name']) ?>"></td>
           <td><input type="text" name="type[]" value="<?= htmlspecialchars($row['type']) ?>"></td>
@@ -346,7 +346,7 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
         </tr>
         <?php endforeach; ?>
         <?php for (; $i < $maxRows; $i++): ?>
-        <tr class="obs-row" data-id="">
+        <tr class="obs-row" data-idx="<?= $i ?>">
           <td class="obs-id"><input type="hidden" name="id[]" value="0">#neu</td>
           <td><input type="text" name="name[]" value=""></td>
           <td><input type="text" name="type[]" value=""></td>
@@ -369,7 +369,7 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
-    var DEF      = { lat: 52.821428, lon: 13.577100, zoom: 17.9, rot: 0 };
+    var DEF = { lat: 52.821428, lon: 13.577100, zoom: 17.9, rot: 0 };
     var TILE_URLS = {
         'voyager-nolabels': 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
         'satellite':        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -379,34 +379,26 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
     };
     var TYPE_ICONS = {kicker:'🚀',rail:'🟧',box:'🟦',fun:'⭐',slider:'🟩','default':'🟣'};
 
-    var slZ   = document.getElementById('sl-zoom');
-    var slLat = document.getElementById('sl-lat');
-    var slLon = document.getElementById('sl-lon');
-    var slRot = document.getElementById('sl-rot');
-    var lblZ  = document.getElementById('lbl-zoom');
-    var lblLt = document.getElementById('lbl-lat');
-    var lblLn = document.getElementById('lbl-lon');
-    var lblR  = document.getElementById('lbl-rot');
-    var coords   = document.getElementById('mcp-coords');
-    var hZ    = document.getElementById('map_zoom');
-    var hLat  = document.getElementById('map_lat');
-    var hLon  = document.getElementById('map_lon');
-    var hRot  = document.getElementById('map_rot');
-    var hStyle= document.getElementById('map_style');
+    var slZ=document.getElementById('sl-zoom'), slLat=document.getElementById('sl-lat'),
+        slLon=document.getElementById('sl-lon'), slRot=document.getElementById('sl-rot');
+    var lblZ=document.getElementById('lbl-zoom'), lblLt=document.getElementById('lbl-lat'),
+        lblLn=document.getElementById('lbl-lon'), lblR=document.getElementById('lbl-rot');
+    var coords=document.getElementById('mcp-coords');
+    var hZ=document.getElementById('map_zoom'), hLat=document.getElementById('map_lat'),
+        hLon=document.getElementById('map_lon'), hRot=document.getElementById('map_rot'),
+        hStyle=document.getElementById('map_style');
 
-    var activeRow    = null;
-    var obsMarkers   = {};
+    var activeRowIdx = null;
+    var obsMarkers   = [];
+    var isUpdatingFromSlider = false;
 
     // ── Leaflet ──
-    var map = L.map('mcp-map', {
-        zoomControl:true, dragging:true,
-        scrollWheelZoom:true, zoomSnap:0.1, zoomDelta:0.1
-    }).setView([parseFloat(slLat.value), parseFloat(slLon.value)], parseFloat(slZ.value));
+    var map = L.map('mcp-map', { zoomControl:true, scrollWheelZoom:true, zoomSnap:0.1, zoomDelta:0.1 })
+        .setView([parseFloat(slLat.value), parseFloat(slLon.value)], parseFloat(slZ.value));
 
     var tileLayer = L.tileLayer(TILE_URLS[hStyle.value] || TILE_URLS['voyager-nolabels'],
-        {attribution:'© OpenStreetMap © CARTO', maxZoom:21, detectRetina:true}).addTo(map);
+        {attribution:'© OSM © CARTO', maxZoom:21, detectRetina:true}).addTo(map);
 
-    // Fadenkreuz
     var crossIcon = L.divIcon({
         html:'<svg width="22" height="22" viewBox="0 0 22 22"><line x1="11" y1="0" x2="11" y2="22" stroke="#0071e3" stroke-width="2"/><line x1="0" y1="11" x2="22" y2="11" stroke="#0071e3" stroke-width="2"/><circle cx="11" cy="11" r="3" fill="#0071e3"/></svg>',
         className:'', iconAnchor:[11,11]
@@ -424,41 +416,43 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
         });
     });
 
-    // ── Slider-Gradient ──
     function grad(sl){
         var p=(sl.value-sl.min)/(sl.max-sl.min)*100;
         sl.style.background='linear-gradient(90deg,#0071e3 '+p+'%,#e5e5ea '+p+'%)';
     }
 
-    // ── UI sync ──
-    function syncUIFromSliders(){
-        var z=parseFloat(slZ.value), lat=parseFloat(slLat.value), lon=parseFloat(slLon.value), rot=parseFloat(slRot.value||'0');
-        lblZ.textContent  = z.toFixed(1);
-        lblLt.textContent = lat.toFixed(6);
-        lblLn.textContent = lon.toFixed(6);
-        lblR.textContent  = rot.toFixed(1)+'\u00b0';
-        coords.textContent= lat.toFixed(6)+', '+lon.toFixed(6)+' \u00b7 zoom '+z.toFixed(1)+' \u00b7 rot '+rot.toFixed(1)+'\u00b0';
-        hZ.value=z.toFixed(1); hLat.value=lat.toFixed(6); hLon.value=lon.toFixed(6); hRot.value=rot.toFixed(1);
-        map.setView([lat,lon],z);
+    // ── Slider → Map (ohne Loop) ──
+    function syncMapFromSliders(){
+        isUpdatingFromSlider = true;
+        var z=parseFloat(slZ.value), lat=parseFloat(slLat.value), lon=parseFloat(slLon.value);
+        lblZ.textContent=z.toFixed(1); lblLt.textContent=lat.toFixed(6); lblLn.textContent=lon.toFixed(6);
+        lblR.textContent=parseFloat(slRot.value||'0').toFixed(1)+'\u00b0';
+        coords.textContent=lat.toFixed(6)+', '+lon.toFixed(6)+' \u00b7 zoom '+z.toFixed(1);
+        hZ.value=z.toFixed(1); hLat.value=lat.toFixed(6); hLon.value=lon.toFixed(6); hRot.value=parseFloat(slRot.value||'0').toFixed(1);
+        map.setView([lat,lon],z,{animate:false});
         crossMarker.setLatLng([lat,lon]);
         [slZ,slLat,slLon,slRot].forEach(grad);
+        setTimeout(function(){ isUpdatingFromSlider=false; }, 50);
     }
 
+    // ── Map → Slider (nur wenn NICHT durch Slider getriggert) ──
     function syncSlidersFromMap(){
+        if (isUpdatingFromSlider) return;
         var c=map.getCenter(), z=map.getZoom();
         slLat.value=(+c.lat).toFixed(6); slLon.value=(+c.lng).toFixed(6); slZ.value=(+z).toFixed(1);
-        syncUIFromSliders();
+        syncMapFromSliders();
     }
 
-    slZ.addEventListener('input',   syncUIFromSliders);
-    slLat.addEventListener('input', syncUIFromSliders);
-    slLon.addEventListener('input', syncUIFromSliders);
-    slRot.addEventListener('input', syncUIFromSliders);
-    map.on('moveend zoomend', syncSlidersFromMap);
+    slZ.addEventListener('input',   syncMapFromSliders);
+    slLat.addEventListener('input', syncMapFromSliders);
+    slLon.addEventListener('input', syncMapFromSliders);
+    slRot.addEventListener('input', syncMapFromSliders);
+    map.on('moveend', syncSlidersFromMap);
+    map.on('zoomend', syncSlidersFromMap);
 
     document.getElementById('btn-mcp-reset').addEventListener('click',function(){
         slZ.value=DEF.zoom; slLat.value=DEF.lat; slLon.value=DEF.lon; slRot.value=DEF.rot;
-        syncUIFromSliders();
+        syncMapFromSliders();
     });
 
     // ── Obstacle-Marker ──
@@ -472,66 +466,73 @@ $rows_json = json_encode($rows, JSON_HEX_TAG | JSON_HEX_APOS);
     }
 
     function renderObsMarkers(){
-        Object.values(obsMarkers).forEach(function(m){ map.removeLayer(m); });
-        obsMarkers = {};
+        obsMarkers.forEach(function(m){ if(m) map.removeLayer(m); });
+        obsMarkers = [];
         document.querySelectorAll('.obs-row').forEach(function(row, idx){
             var lat = parseFloat(row.querySelector('.obs-lat').value);
             var lon = parseFloat(row.querySelector('.obs-lon').value);
-            if (!isFinite(lat)||!isFinite(lon)||lat===0||lon===0) return;
+            if (!isFinite(lat)||!isFinite(lon)||lat===0||lon===0) { obsMarkers[idx]=null; return; }
             var name = row.querySelector('input[name="name[]"]').value;
             var type = row.querySelector('input[name="type[]"]').value;
             var rot  = parseFloat(row.querySelector('input[name="rotation[]"]').value)||0;
-            var mk = L.marker([lat,lon],{
-                icon: makeObsIcon(name,type,rot),
-                draggable: true
-            }).addTo(map);
+            var mk = L.marker([lat,lon],{ icon:makeObsIcon(name,type,rot), draggable:true }).addTo(map);
             mk.on('dragend', function(e){
                 row.querySelector('.obs-lat').value = e.target.getLatLng().lat.toFixed(6);
                 row.querySelector('.obs-lon').value = e.target.getLatLng().lng.toFixed(6);
             });
-            mk.on('click', function(){ setActiveRow(row); });
+            mk.on('click', function(e){ L.DomEvent.stopPropagation(e); setActiveRow(idx); });
             obsMarkers[idx] = mk;
         });
     }
 
     // ── Aktive Zeile ──
-    function setActiveRow(row){
+    function setActiveRow(idx){
         document.querySelectorAll('.obs-row').forEach(function(r){ r.classList.remove('obs-active-row'); });
-        if (row === activeRow) { activeRow = null; return; }
-        activeRow = row;
+        if (idx === activeRowIdx) { activeRowIdx = null; return; }
+        activeRowIdx = idx;
+        var row = document.querySelectorAll('.obs-row')[idx];
+        if (!row) return;
         row.classList.add('obs-active-row');
         var lat = parseFloat(row.querySelector('.obs-lat').value);
         var lon = parseFloat(row.querySelector('.obs-lon').value);
         if (isFinite(lat) && isFinite(lon) && lat!==0) map.panTo([lat,lon]);
     }
 
-    document.querySelectorAll('.obs-row').forEach(function(row){
-        row.addEventListener('click', function(e){ setActiveRow(row); });
+    // ── Zeilen-Click (stopPropagation auf inputs) ──
+    document.querySelectorAll('.obs-row').forEach(function(row, idx){
+        row.addEventListener('click', function(e){
+            if (e.target.tagName==='INPUT' || e.target.tagName==='TD') return;
+            setActiveRow(idx);
+        });
+        // Klick auf TD (nicht input) = aktivieren
+        row.querySelectorAll('td').forEach(function(td){
+            td.addEventListener('click', function(e){
+                if (e.target.tagName!=='INPUT') setActiveRow(idx);
+            });
+        });
+        // lat/lon Änderung = Marker neu rendern
         row.querySelector('.obs-lat').addEventListener('change', renderObsMarkers);
         row.querySelector('.obs-lon').addEventListener('change', renderObsMarkers);
     });
 
-    // ── Klick auf Karte ──
+    // ── Karten-Klick ──
     map.on('click', function(e){
-        if (activeRow) {
+        if (activeRowIdx !== null) {
+            var row = document.querySelectorAll('.obs-row')[activeRowIdx];
+            if (!row) return;
             var lat = e.latlng.lat.toFixed(6);
             var lon = e.latlng.lng.toFixed(6);
-            activeRow.querySelector('.obs-lat').value = lat;
-            activeRow.querySelector('.obs-lon').value = lon;
-            var name = activeRow.querySelector('input[name="name[]"]').value || 'Obstacle';
-            coords.textContent = '\u2705 ' + name + ' \u2192 ' + lat + ', ' + lon;
+            row.querySelector('.obs-lat').value = lat;
+            row.querySelector('.obs-lon').value = lon;
+            var name = row.querySelector('input[name="name[]"]').value || 'Obstacle';
+            coords.innerHTML = '<strong style="color:#10b981">✅ '+name+'</strong> → '+lat+', '+lon;
             renderObsMarkers();
-        } else {
-            syncSlidersFromMap();
-            map.panTo(e.latlng);
-            map.setView(e.latlng, map.getZoom());
-            syncSlidersFromMap();
         }
     });
 
     // Init
     [slZ,slLat,slLon,slRot].forEach(grad);
-    setTimeout(function(){ renderObsMarkers(); map.invalidateSize(); }, 300);
+    setTimeout(function(){ renderObsMarkers(); map.invalidateSize(); }, 200);
 
 })();
 </script>
