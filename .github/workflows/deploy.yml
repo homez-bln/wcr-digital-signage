@@ -14,17 +14,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Deploy via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: /wp-content/plugins/wcr-digital-signage/
-          local-dir: ./wcr-digital-signage/
-          dangerous-clean-slate: false
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.DS_Store
+          local_path: './wcr-digital-signage/*'
+          remote_path: '/wp-content/plugins/wcr-digital-signage'
+          sftp_only: true
+          args: '-o ConnectTimeout=5'
