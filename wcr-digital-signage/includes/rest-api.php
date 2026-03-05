@@ -216,13 +216,18 @@ add_action('rest_api_init', function() {
     ]);
 
     // ── Obstacles Map ──
+    // Liefert alle Positions-Spalten inkl. der mode-spezifischen pos_x_l/y_l und pos_x_p/y_p
     register_rest_route('wakecamp/v1', '/obstacles', [
         'methods'             => 'GET',
         'callback'            => function() {
             $db = get_ionos_db_connection();
             if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
             $rows = $db->get_results(
-                "SELECT id, name, type, icon_url, pos_x, pos_y, lat, lon, rotation, active
+                "SELECT id, name, type, icon_url,
+                        pos_x, pos_y,
+                        pos_x_l, pos_y_l,
+                        pos_x_p, pos_y_p,
+                        lat, lon, rotation, active
                  FROM obstacles
                  WHERE active = 1
                  ORDER BY id ASC",
