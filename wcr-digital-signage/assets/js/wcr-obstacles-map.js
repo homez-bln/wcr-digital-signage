@@ -5,9 +5,11 @@
 ═══════════════════════════════════════════════════════ */
 (function () {
 
-    const MAP_LAT = 52.821428251670844;
-    const MAP_LON = 13.5770999960116;
-    const ZOOM    = 17.9;
+    const DEFAULT_CFG = {
+        lat:  52.821428251670844,
+        lon:  13.5770999960116,
+        zoom: 17.9
+    };
 
     const STYLES = [
         {
@@ -53,6 +55,18 @@
         default: '🟣'
     };
 
+    function getMode(wrap) {
+        var m = (window.wcrObstaclesMap && window.wcrObstaclesMap.mode) || '';
+        m = (m || '').toString().toLowerCase().trim();
+        if (m === 'portrait' || m === 'landscape') return m;
+        if (wrap && wrap.classList.contains('portrait')) return 'portrait';
+        return 'landscape';
+    }
+
+    function getMapConfigUrl() {
+        return (window.wcrObstaclesMap && window.wcrObstaclesMap.mapConfigUrl) || '';
+    }
+
     function initObstaclesMap() {
         var wrap = document.getElementById('wcr-obstacles-map-wrap');
         var el   = document.getElementById('wcr-obstacles-map');
@@ -72,6 +86,8 @@
         var apiUrl = (window.wcrObstaclesMap && window.wcrObstaclesMap.apiUrl)
                      || el.getAttribute('data-api');
 
+        var mode = getMode(wrap);
+
         /* ── Leaflet Map ── */
         var map = L.map(el, {
             zoomControl:        false,
@@ -82,7 +98,24 @@
             touchZoom:          false,
             zoomSnap:           0,
             preferCanvas:       true
-        }).setView([MAP_LAT, MAP_LON], ZOOM);
+        }).setView([DEFAULT_CFG.lat, DEFAULT_CFG.lon], DEFAULT_CFG.zoom);
+
+        /* ── Map-Config laden (mode-spezifisch) ── */
+        var cfgUrl = getMapConfigUrl();
+        if (cfgUrl) {
+            var u = cfgUrl + (cfgUrl.indexOf('?') >= 0 ? '&' : '?') + 'mode=' + encodeURIComponent(mode);
+            fetch(u, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (cfg) {
+                    if (!cfg) return;
+                    var lat  = parseFloat(cfg.lat);
+                    var lon  = parseFloat(cfg.lon);
+                    var zoom = parseFloat(cfg.zoom);
+                    if (!isFinite(lat) || !isFinite(lon) || !isFinite(zoom)) return;
+                    map.setView([lat, lon], zoom);
+                })
+                .catch(function () {});
+        }
 
         /* ── Tile-Layer ── */
         var savedIdx = parseInt(localStorage.getItem(DEFAULT_STYLE_KEY) || '0', 10);
