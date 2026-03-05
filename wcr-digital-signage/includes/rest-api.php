@@ -150,21 +150,25 @@ add_action('rest_api_init', function() {
         [
             'methods'             => 'POST',
             'callback'            => function(WP_REST_Request $req) {
-                if (!current_user_can('manage_options')) {
-                    // Nonce-Fallback für direkte Aufrufe aus dem Admin
-                    $nonce = $req->get_header('X-WP-Nonce') ?: ($req->get_param('_wpnonce') ?? '');
-                    if (!wp_verify_nonce($nonce, 'wcr_obstacles_map_config')) {
-                        return new WP_Error('forbidden', 'Nicht autorisiert', ['status' => 403]);
-                    }
+                // Auth: wcr_secret (wie /ds-settings) ODER eingeloggter Admin mit gültigem Nonce
+                $secret = $req->get_param('wcr_secret') ?? '';
+                $nonce  = $req->get_header('X-WP-Nonce') ?: ($req->get_param('_wpnonce') ?? '');
+
+                $ok = ($secret === WCR_DS_API_SECRET)
+                   || current_user_can('manage_options')
+                   || wp_verify_nonce($nonce, 'wcr_obstacles_map_config');
+
+                if (!$ok) {
+                    return new WP_Error('forbidden', 'Nicht autorisiert', ['status' => 403]);
                 }
+
                 $lat  = (float) $req->get_param('lat');
                 $lon  = (float) $req->get_param('lon');
                 $zoom = (float) $req->get_param('zoom');
 
-                // Sanity-Checks
-                if ($lat < -90   || $lat > 90)   return new WP_Error('invalid', 'Lat ungültig',  ['status' => 400]);
-                if ($lon < -180  || $lon > 180)  return new WP_Error('invalid', 'Lon ungültig',  ['status' => 400]);
-                if ($zoom < 1    || $zoom > 21)  return new WP_Error('invalid', 'Zoom ungültig', ['status' => 400]);
+                if ($lat < -90  || $lat > 90)  return new WP_Error('invalid', 'Lat ungültig',  ['status' => 400]);
+                if ($lon < -180 || $lon > 180) return new WP_Error('invalid', 'Lon ungültig',  ['status' => 400]);
+                if ($zoom < 1   || $zoom > 21) return new WP_Error('invalid', 'Zoom ungültig', ['status' => 400]);
 
                 update_option('wcr_obstacles_map_lat',  $lat);
                 update_option('wcr_obstacles_map_lon',  $lon);
