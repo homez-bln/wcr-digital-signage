@@ -11,8 +11,9 @@
  *   titel          – Überschrift (Standard: "Unsere Empfehlungen")
  *   table          – Optional: Tabelle eingrenzen (food, drinks, cable, camping, extra, ice)
  *   img1,img2,img3 – Optional: URL zum Produkt-Bild (zeigt Dampf-Effekt darunter)
+ *   show_menge     – Optional: "1" zeigt Mengenangaben, sonst ausgeblendet (Standard: "0")
  *
- * Jede Card zeigt: [Bild + Dampf] · Produktname · Preis · Menge
+ * Jede Card zeigt: [Bild + Dampf] · Produktname · Preis · [optional: Menge]
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -22,15 +23,18 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
     function wcr_sc_produkte( $atts ) {
 
         $atts = shortcode_atts( [
-            'id1'   => '',
-            'id2'   => '',
-            'id3'   => '',
-            'titel' => 'Unsere Empfehlungen',
-            'table' => '',
-            'img1'  => '',
-            'img2'  => '',
-            'img3'  => '',
+            'id1'        => '',
+            'id2'        => '',
+            'id3'        => '',
+            'titel'      => 'Unsere Empfehlungen',
+            'table'      => '',
+            'img1'       => '',
+            'img2'       => '',
+            'img3'       => '',
+            'show_menge' => '0',  // Standard: ausgeblendet
         ], $atts, 'wcr_produkte' );
+
+        $show_menge = ( $atts['show_menge'] === '1' || $atts['show_menge'] === 'true' );
 
         // ── Assets laden ──
         wp_enqueue_style(
@@ -129,7 +133,7 @@ if ( ! function_exists( 'wcr_sc_produkte' ) ) {
                             ?><span class="wp-currency">€</span><?php endif; ?>
                         </div>
 
-                        <?php if ( ! empty( $p['menge'] ) ) : ?>
+                        <?php if ( $show_menge && ! empty( $p['menge'] ) ) : ?>
                         <div class="wcr-produkte-menge">
                             <?php
                             $menge = rtrim( rtrim( number_format( (float) $p['menge'], 3, ',', '.' ), '0' ), ',' );
