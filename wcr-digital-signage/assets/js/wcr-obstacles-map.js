@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    WCR Obstacles Map – wcr-obstacles-map.js
-   Label bleibt horizontal (Icon + Map-Rotation)
+   Label zentriert unter PNG mit Counter-Rotation
 ═══════════════════════════════════════════════════════ */
 (function () {
 
@@ -138,7 +138,7 @@
                 if (py < 0) py = parseFloat(o.pos_y||0);
 
                 if (lat !== 0 && lon !== 0) {
-                    // ── Geo-Marker: PNG rotiert, Label bleibt horizontal ──
+                    // ── Geo-Marker: PNG rotiert, Label zentriert unter PNG ──
                     var iconHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">';
                     
                     // Icon-Container (nur dieser rotiert)
@@ -156,10 +156,12 @@
                     }
                     iconHtml += '</div>';
                     
-                    // Label mit Counter-Rotation (gegen Map-Rotation)
+                    // Label-Wrapper mit Counter-Rotation (zentriert)
                     if (label) {
                         var counterRot = -mapRotation;
-                        iconHtml += '<span style="font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em;transform:rotate('+counterRot+'deg);">'+label+'</span>';
+                        iconHtml += '<div style="display:inline-block;transform:rotate('+counterRot+'deg);transform-origin:center;">';
+                        iconHtml += '<span style="font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.03em;">'+label+'</span>';
+                        iconHtml += '</div>';
                     }
                     iconHtml += '</div>';
                     
@@ -209,12 +211,15 @@
                     }
                     d.appendChild(iconWrap);
                     
-                    // Label mit Counter-Rotation
+                    // Label-Wrapper mit Counter-Rotation
                     if (label) {
+                        var lblWrap = document.createElement('div');
+                        lblWrap.style.cssText = 'display:inline-block;transform:rotate('+ (-mapRotation) +'deg);transform-origin:center';
                         var lblEl = document.createElement('span');
                         lblEl.textContent = label;
-                        lblEl.style.cssText = 'font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap;transform:rotate('+ (-mapRotation) +'deg)';
-                        d.appendChild(lblEl);
+                        lblEl.style.cssText = 'font-size:'+LBL_SIZE+';font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap';
+                        lblWrap.appendChild(lblEl);
+                        d.appendChild(lblWrap);
                     }
                     overlay.appendChild(d);
                 }
