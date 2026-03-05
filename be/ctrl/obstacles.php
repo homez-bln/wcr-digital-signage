@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
         'lon'        => $lon,
         'zoom'       => $zoom,
         'rot'        => $rot,
-        'wcr_secret' => OBS_SECRET,   // ← Auth-Key
+        'wcr_secret' => OBS_SECRET,
     ]);
 
     if ($r2['ok'] && !empty($r2['json']['ok'])) {
@@ -387,19 +387,24 @@ $maxRows = max(20, count($rows) + 3);
         target: 'mcp-map',
         layers: [
             new ol.layer.Tile({
+                // OL10: urls[] array for subdomain rotation (Leaflet {a-c} syntax not supported)
                 source: new ol.source.XYZ({
-                    url: 'https://{a-c}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+                    urls: [
+                        'https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
+                        'https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
+                        'https://c.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png'
+                    ],
                     attributions: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
                     maxZoom: 21
                 })
             })
         ],
         view: view,
-        controls: ol.control.defaults({
-            attribution: false,
-            zoom: true,
-            rotate: true
-        })
+        // OL10: ol.control.defaults() removed – use explicit array
+        controls: [
+            new ol.control.Zoom(),
+            new ol.control.Rotate()
+        ]
     });
 
     function syncUIFromView() {
