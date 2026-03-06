@@ -18,7 +18,7 @@
 
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
-wcr_require('edit_kino');
+// wcr_require('edit_kino');  ← DEAKTIVIERT für Test
 $db = $pdo;
 
 $TABLE = 'wp_wcr_kino';
