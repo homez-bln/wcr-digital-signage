@@ -1,6 +1,20 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// ══════════════════════════════════════════════════════════════════════════════
+// KINO CINEMA SLIDER  [wcr_kino_slider]
+// ══════════════════════════════════════════════════════════════════════════════
+if (!function_exists('wcr_kino_slider_shortcode')) {
+    function wcr_kino_slider_shortcode($atts) {
+        $atts = shortcode_atts([], $atts, 'wcr_kino_slider');
+        
+        ob_start();
+        include plugin_dir_path(dirname(__FILE__)) . 'templates/kino-slider.php';
+        return ob_get_clean();
+    }
+    add_shortcode('wcr_kino_slider', 'wcr_kino_slider_shortcode');
+}
+
 // ── Random Background ──
 if (!function_exists('random_background_shortcode')) {
     function random_background_shortcode($atts, $content = null) {
