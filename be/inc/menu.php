@@ -13,6 +13,7 @@ $_menuItems = [
     ['Cable',          'ctrl/list.php?t=cable',   null],
     ['Camping',        'ctrl/list.php?t=camping', null],
     ['Extra',          'ctrl/list.php?t=extra',   null],
+    ['Kino',           'ctrl/kino.php',           'edit_kino'],
     ['Media',          'ctrl/media.php',          'view_media'],
     ['Obstacles',      'ctrl/obstacles.php',      'view_media'],
     ['DS-Seiten',      'ctrl/ds-seiten.php',      'view_ds'],
