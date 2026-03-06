@@ -215,17 +215,18 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
-    // ── 🎬 Kino Films ──
+    // ── 🎬 Kino Films (FIXED: Use IONOS DB) ──
     register_rest_route('wakecamp/v1', '/kino', [
         'methods'             => 'GET',
         'callback'            => function() {
-            global $wpdb;
-            $table = $wpdb->prefix . 'wcr_kino';
-            $today = current_time('Y-m-d');
+            $db = get_ionos_db_connection();
+            if (!$db) return new WP_Error('db_error', 'DB fehlgeschlagen', ['status' => 500]);
             
-            $films = $wpdb->get_results($wpdb->prepare(
+            $today = date('Y-m-d');
+            
+            $films = $db->get_results($db->prepare(
                 "SELECT id, title, cover_url, date, sort_order
-                 FROM $table
+                 FROM wp_wcr_kino
                  WHERE date >= %s
                  ORDER BY date ASC, sort_order ASC",
                 $today
