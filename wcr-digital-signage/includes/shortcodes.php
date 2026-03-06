@@ -1,15 +1,22 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 // KINO CINEMA SLIDER  [wcr_kino_slider]
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 if (!function_exists('wcr_kino_slider_shortcode')) {
     function wcr_kino_slider_shortcode($atts) {
         $atts = shortcode_atts([], $atts, 'wcr_kino_slider');
         
+        // Correct path to template
+        $template_path = WCR_DS_PATH . 'templates/kino-slider.php';
+        
+        if (!file_exists($template_path)) {
+            return '<!-- Kino Template nicht gefunden: ' . esc_html($template_path) . ' -->';
+        }
+        
         ob_start();
-        include plugin_dir_path(dirname(__FILE__)) . 'templates/kino-slider.php';
+        include $template_path;
         return ob_get_clean();
     }
     add_shortcode('wcr_kino_slider', 'wcr_kino_slider_shortcode');
