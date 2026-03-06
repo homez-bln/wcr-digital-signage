@@ -2,13 +2,13 @@
 /**
  * Plugin Name: WCR Digital Signage
  * Description: Digital Signage System für Wake & Camp Ruhlsdorf
- * Version:     1.2.0
+ * Version:     2.0.0
  * Author:      WCR
  */
 
 if (!defined('ABSPATH')) exit;
 
-define( 'WCR_DS_VERSION', '1.2.0' );
+define( 'WCR_DS_VERSION', '2.0.0' );
 define( 'WCR_DS_URL',     plugin_dir_url( __FILE__ ) );
 define( 'WCR_DS_PATH',    plugin_dir_path( __FILE__ ) );
 
@@ -149,8 +149,9 @@ if ( ! function_exists( 'wcr_ds_hex_to_rgb' ) ) {
 
 add_action( 'wp_enqueue_scripts', 'wcr_ds_enqueue' );
 function wcr_ds_enqueue() {
-    wp_enqueue_style(  'wcr-ds-global', WCR_DS_URL . 'assets/css/wcr-ds-global.css', array(), WCR_DS_VERSION );
-    wp_enqueue_script( 'wcr-ds-utils',  WCR_DS_URL . 'assets/js/wcr-ds-utils.js',   array(), WCR_DS_VERSION, true );
+    wp_enqueue_style(  'wcr-ds-global',     WCR_DS_URL . 'assets/css/wcr-ds-global.css',     array(), WCR_DS_VERSION );
+    wp_enqueue_style(  'wcr-ds-components', WCR_DS_URL . 'assets/css/wcr-ds-components.css', array('wcr-ds-global'), WCR_DS_VERSION );
+    wp_enqueue_script( 'wcr-ds-utils',      WCR_DS_URL . 'assets/js/wcr-ds-utils.js',        array(), WCR_DS_VERSION, true );
 }
 function wcr_ds_load_gsap() {
     if ( ! wp_script_is( 'gsap', 'enqueued' ) )
