@@ -1,14 +1,19 @@
-
 <?php
 /**
  * API ENDPOINT: Liefert neuestes Foto
  * Datei: be/api/get_latest_photo.php
+ * v2: + Sichere Fehlerbehandlung
  */
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Erlaubt Zugriff von WordPress
 
 require_once __DIR__ . '/../inc/db.php';
+
+// ── Lightweight Error-Handler für externe API ──
+if (!function_exists('wcr_log_error')) {
+    require_once __DIR__ . '/../inc/error_handler.php';
+}
 
 try {
     $db = isset($conn) ? $conn : (isset($pdo) ? $pdo : null);
@@ -43,9 +48,13 @@ try {
     ]);
 
 } catch (Exception $e) {
+    // ── Internes Logging: Volle Fehlerdetails ──
+    wcr_log_error('get_latest_photo', $e);
+    
+    // ── User-Ausgabe: Generisch (kein Exception-Message) ──
+    http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'error' => 'Serverfehler'
     ]);
 }
-?>
