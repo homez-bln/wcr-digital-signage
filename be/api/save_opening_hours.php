@@ -8,14 +8,20 @@ require_login();
 ob_end_clean();
 header('Content-Type: application/json');
 
-// ── Input ─────────────────────────────────────────────────────────
+// ── CSRF-Schutz ──
+if (!wcr_verify_csrf_silent()) {
+    http_response_code(403);
+    exit(json_encode(['success' => false, 'error' => 'CSRF-Token ungültig']));
+}
+
+// ── Input ──────────────────────────────────────────────────────────────────────
 $body  = json_decode(file_get_contents('php://input'), true);
 $datum = trim($body['datum'] ?? '');
 $field = trim($body['field'] ?? '');
 $value =      $body['value'] ?? '';
 $preserveStart = trim($body['preserve_start_time'] ?? '');
 
-// ── Validierung ───────────────────────────────────────────────────
+// ── Validierung ──────────────────────────────────────────────────────────────────────
 $allowedFields = ['start_time', 'end_time', 'course1', 'course2',
                   'course1_text', 'course2_text', 'is_closed'];
 
@@ -24,7 +30,7 @@ if (empty($datum) || !in_array($field, $allowedFields, true)) {
     exit;
 }
 
-// ── DB ────────────────────────────────────────────────────────────
+// ── DB ──────────────────────────────────────────────────────────────────────
 $db = isset($conn) ? $conn : (isset($pdo) ? $pdo : null);
 
 if (!$db) {
@@ -37,7 +43,7 @@ if ($db instanceof PDO) {
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 }
 
-// ── SQL ───────────────────────────────────────────────────────────
+// ── SQL ──────────────────────────────────────────────────────────────────────
 try {
 
     if ($db instanceof PDO) {
