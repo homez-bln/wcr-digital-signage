@@ -2,7 +2,7 @@
 /**
  * ctrl/obstacles.php — Obstacles-Verwaltung + Karten-Einstellungen
  * lat/lon statt pos_x/y – einmal eingeben, alle Modi korrekt
- * SECURITY v8: Erfordert edit_content Permission (cernal, admin)
+ * SECURITY v9: Erfordert edit_content Permission + CSRF-Token
  */
 
 $PAGE_TITLE = 'Obstacles';
@@ -104,6 +104,9 @@ if (!isset($STYLE_OPTIONS[$currentStyle])) $currentStyle = 'voyager-nolabels';
 $cfgMsg  = '';
 $cfgType = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
+    // ── CSRF-Schutz ──
+    wcr_verify_csrf();
+    
     $lat   = (float)str_replace(',', '.', $_POST['map_lat']   ?? '');
     $lon   = (float)str_replace(',', '.', $_POST['map_lon']   ?? '');
     $zoom  = (float)str_replace(',', '.', $_POST['map_zoom']  ?? '');
@@ -130,6 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_map_config'])) {
 // ── Obstacles speichern (lat/lon) ──
 $saveMsg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_obstacles'])) {
+    // ── CSRF-Schutz ──
+    wcr_verify_csrf();
+    
     $ids     = $_POST['id']       ?? [];
     $names   = $_POST['name']     ?? [];
     $types   = $_POST['type']     ?? [];
@@ -248,6 +254,7 @@ $maxRows = max(5, count($rows) + 3);
     </div>
 
     <form method="POST">
+      <?= wcr_csrf_field() ?>
       <input type="hidden" name="save_map_config" value="1">
       <input type="hidden" name="mode" value="<?= hv($mode) ?>">
       <input type="hidden" id="map_style" name="map_style" value="<?= hv($currentStyle) ?>">
@@ -320,6 +327,7 @@ $maxRows = max(5, count($rows) + 3);
   <?php endif; ?>
 
   <form method="POST" id="obs-form">
+    <?= wcr_csrf_field() ?>
     <input type="hidden" name="save_obstacles" value="1">
     <input type="hidden" name="mode" value="<?= hv($mode) ?>">
     <table class="obs-table">
