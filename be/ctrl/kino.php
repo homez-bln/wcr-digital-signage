@@ -7,8 +7,10 @@
  * Zweck    : Filme verwalten (hinzufügen, bearbeiten, löschen)
  *            Cover-Bild, Titel, Spieltag, Sortierung
  *
+ * SECURITY v8: Erfordert edit_content Permission (cernal, admin)
+ *
  * Abhängigkeiten:
- *   be/inc/auth.php          → require_login()
+ *   be/inc/auth.php          → require_login(), wcr_require()
  *   be/inc/db.php            → $db (PDO)
  *   be/inc/style.css         → gemeinsames Apple-Design-System
  *
@@ -18,7 +20,10 @@
 
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
-// wcr_require('edit_kino');  ← DEAKTIVIERT für Test
+
+// ── SECURITY: Login + Permission erforderlich ──
+wcr_require('edit_content');
+
 $db = $pdo;
 
 $TABLE = 'wp_wcr_kino';
