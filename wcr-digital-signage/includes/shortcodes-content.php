@@ -1,9 +1,14 @@
 <?php
 /**
- * Shortcode Content Functions
+ * Content Shortcodes: Menü & Preislisten
  * 
- * Enthält die Callback-Funktionen für Content-Shortcodes.
- * Wird von wcr-digital-signage.php geladen BEVOR add_shortcode() aufgerufen wird.
+ * Enthält alle Shortcode-Funktionen für Menü- und Preisanzeigen.
+ * Gemeinsames Merkmal: Nutzen WCR.renderDrinksList() aus wcr-ds-utils.js
+ * 
+ * KATEGORIEN:
+ * - Getränke (Alkohol & Alkoholfrei)
+ * - Speisen (Essen, Kaffee, Eis)
+ * - Preise (Cablepark, Camping)
  * 
  * WICHTIG: Keine add_shortcode() hier – Registrierung bleibt in Hauptdatei!
  */
@@ -11,13 +16,16 @@
 if (!defined('ABSPATH')) exit;
 
 /* ════════════════════════════════════════════════════════════════════════════
-   GETRÄNKE & SPEISEN SHORTCODES
-   Nutzen WCR.renderDrinksList() aus wcr-ds-utils.js
+   GETRÄNKE-KARTEN
+   Zeigen Getränke-Sortiment aus Tabelle `drinks`
 ════════════════════════════════════════════════════════════════════════════ */
 
 /**
  * [wcr_getraenke] – Alkoholische Getränke
- * Zeigt Bier, Weißbier, Wein, Mix-Getränke, Longdrinks, Shots
+ * 
+ * ZEIGT: Bier, Weißbier, Wein, Mix-Getränke, Longdrinks, Shots
+ * API: /wp-json/wakecamp/v1/drinks
+ * RENDERER: WCR.renderDrinksList()
  */
 function wcr_sc_getraenke( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
@@ -33,7 +41,10 @@ function wcr_sc_getraenke( $atts ) {
 
 /**
  * [wcr_softdrinks] – Alkoholfreie Getränke
- * Zeigt Fritz-Kola, Fritz-Limo, Energy, Wasser, Tee, Chocolate
+ * 
+ * ZEIGT: Fritz-Kola, Fritz-Limo, Energy, Wasser, Tee, Chocolate
+ * API: /wp-json/wakecamp/v1/drinks
+ * RENDERER: WCR.renderDrinksList()
  */
 function wcr_sc_softdrinks( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
@@ -47,9 +58,18 @@ function wcr_sc_softdrinks( $atts ) {
     return $out;
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   SPEISE-KARTEN
+   Zeigen Speisen-Sortiment aus verschiedenen Tabellen
+════════════════════════════════════════════════════════════════════════════ */
+
 /**
  * [wcr_essen] – Speisekarte
- * Zeigt Bar, Grill, Küche mit Food-Gruppen-Status
+ * 
+ * ZEIGT: Bar, Grill, Küche mit Food-Gruppen-Status
+ * API: /wp-json/wakecamp/v1/food + /wp-json/wakecamp/v1/food/gruppen
+ * RENDERER: WCR.renderDrinksList()
+ * BESONDERHEIT: Unterstützt Gruppen-Status (aktiv/inaktiv)
  */
 function wcr_sc_essen( $atts ) {
     $out  = '<div id="drinks-display"></div>' . "\n";
@@ -65,59 +85,12 @@ function wcr_sc_essen( $atts ) {
 }
 
 /**
- * [wcr_eis] – Eiskarte
- * Zeigt Ice-Produkte aus Tabelle `ice`
- */
-function wcr_sc_eis( $atts ) {
-    $out  = '<div id="drinks-display"></div>' . "\n";
-    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
-    $out .= 'WCR.renderDrinksList("drinks-display",';
-    $out .= '[{label:"Eis",types:["obenlinks","obenrechts","untenlinks","untenrechts"]}],';
-    $out .= '"/wp-json/wakecamp/v1/ice"';
-    $out .= ');});</script>' . "\n";
-    return $out;
-}
-
-/**
- * [wcr_cable] – Cablepark-Preise
- * Zeigt Tickets, Verleih, Spezial aus Tabelle `cable`
- */
-function wcr_sc_cable( $atts ) {
-    $out  = '<div id="drinks-display"></div>' . "\n";
-    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
-    $out .= 'WCR.renderDrinksList("drinks-display",';
-    $out .= '[{label:"Tickets",types:["Ticket","ticket","ticket-s","ticket-e","ticket-ed","ticket-a","ticket-d"]},';
-    $out .= '{label:"Verleih",types:["board","hardware"]},';
-    $out .= '{label:"Spezial",types:["spezial"]}],';
-    $out .= '"/wp-json/wakecamp/v1/cable"';
-    $out .= ');});</script>' . "\n";
-    return $out;
-}
-
-/**
- * [wcr_camping] – Camping-Preise
- * Zeigt Personen, Übernachtung, Extras aus Tabelle `camping`
- */
-function wcr_sc_camping( $atts ) {
-    $out  = '<div id="drinks-display"></div>' . "\n";
-    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
-    $out .= 'WCR.renderDrinksList("drinks-display",';
-    $out .= '[{label:"Personen",types:["personen"]},';
-    $out .= '{label:"Fahrzeuge & Übernachtung",types:["night"]},';
-    $out .= '{label:"Extras",types:["extra"]}],';
-    $out .= '"/wp-json/wakecamp/v1/camping"';
-    $out .= ');});</script>' . "\n";
-    return $out;
-}
-
-/* ════════════════════════════════════════════════════════════════════════════
-   KAFFEE SHORTCODE
-   Nutzt wcr-kaffee.js für dynamisches Rendering
-════════════════════════════════════════════════════════════════════════════ */
-
-/**
  * [wcr_kaffee] – Kaffeekarte
- * Lädt Kaffeekarten-Daten aus REST-API und rendert mit wcr-kaffee.js
+ * 
+ * ZEIGT: Kaffee-Sortiment in Grid-Layout
+ * API: Lädt Daten über wcr-kaffee.js
+ * RENDERER: wcr-kaffee.js (spezialisiertes Script)
+ * BESONDERHEIT: Eigenes JS-Script statt WCR.renderDrinksList()
  */
 function wcr_sc_kaffee( $atts ) {
     wp_enqueue_script( 'wcr-kaffee', WCR_DS_URL . 'assets/js/wcr-kaffee.js', array(), WCR_DS_VERSION, true );
@@ -134,142 +107,62 @@ function wcr_sc_kaffee( $atts ) {
     return $out;
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   WETTER & WIND SHORTCODES
-   Nutzen externe APIs (Open-Meteo) für Live-Wetterdaten
-════════════════════════════════════════════════════════════════════════════ */
-
 /**
- * [wcr_windmap] – Wind-Karte mit Live-Daten
- * Zeigt Windstärke, Windrichtung, Timeline mit Leaflet-Karte
- * Lädt Leaflet-Bibliothek dynamisch
+ * [wcr_eis] – Eiskarte
+ * 
+ * ZEIGT: Eis-Sortiment aus Tabelle `ice`
+ * API: /wp-json/wakecamp/v1/ice
+ * RENDERER: WCR.renderDrinksList()
  */
-function wcr_sc_windmap( $atts ) {
-    wcr_ds_load_leaflet();
-    wp_enqueue_script( 'wcr-windmap', WCR_DS_URL . 'assets/js/wcr-windmap.js', array('leaflet-js'), WCR_DS_VERSION, true );
-    
-    $out  = '<div id="wcr-windmap-wrap">';
-    $out .= '<div id="map"></div>';
-    $out .= '<canvas id="wind-canvas"></canvas>';
-    $out .= '<canvas id="gust-canvas"></canvas>';
-    
-    // Spot-Header
-    $out .= '<div class="glass" id="spot-header">';
-    $out .= '<div><div class="ds-live-dot"></div></div>';
-    $out .= '<div><div class="spot-name">📍 Wake &amp; Camp Ruhlsdorf</div>';
-    $out .= '<div class="spot-coords">52.8213° N · 13.5754° E</div></div>';
-    $out .= '</div>';
-    
-    // Time-Card
-    $out .= '<div class="glass" id="time-card">';
-    $out .= '<div id="tc-forecast">–</div>';
-    $out .= '<div id="tc-realtime">–</div>';
-    $out .= '<div id="tc-badge">Jetzt</div>';
-    $out .= '</div>';
-    
-    // Right-Panel
-    $out .= '<div id="right-panel">';
-    $out .= '<div id="kn-box">';
-    $out .= '<div class="kn-icon">💨</div>';
-    $out .= '<div class="kn-val" id="kn-speed">–</div>';
-    $out .= '<div class="kn-unit">Knoten</div>';
-    $out .= '<div class="kn-label">Windstärke</div>';
-    $out .= '</div>';
-    $out .= '<div id="windrose-box">';
-    $out .= '<svg width="100" height="100" viewBox="0 0 100 100">';
-    $out .= '<circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>';
-    $out .= '<text x="50" y="12" text-anchor="middle" fill="#7a9abc" font-size="11">N</text>';
-    $out .= '<text x="50" y="96" text-anchor="middle" fill="#7a9abc" font-size="11">S</text>';
-    $out .= '<text x="92" y="54" text-anchor="middle" fill="#7a9abc" font-size="11">O</text>';
-    $out .= '<text x="8" y="54" text-anchor="middle" fill="#7a9abc" font-size="11">W</text>';
-    $out .= '<g id="wr-arrow" transform="rotate(0 50 50)">';
-    $out .= '<polygon points="50,14 55,42 50,38 45,42" fill="#00c8ff" opacity="0.9"/>';
-    $out .= '<polygon points="50,86 55,58 50,62 45,58" fill="rgba(0,200,255,0.2)"/>';
-    $out .= '</g></svg>';
-    $out .= '<div id="wr-degs">–°</div>';
-    $out .= '<div id="wr-label">Windrichtung</div>';
-    $out .= '</div>';
-    $out .= '</div>';
-    
-    // Timeline
-    $out .= '<div id="timeline">';
-    $out .= '<div id="tl-current-time">';
-    $out .= '<span id="tl-label-text">–</span>';
-    $out .= '<span id="tl-delta"></span>';
-    $out .= '</div>';
-    $out .= '<div id="tl-track-wrap">';
-    $out .= '<div id="tl-labels"></div>';
-    $out .= '<div id="tl-rail">';
-    $out .= '<div id="tl-fill"></div>';
-    $out .= '<div id="tl-cursor"></div>';
-    $out .= '</div>';
-    $out .= '</div>';
-    $out .= '</div>';
-    
-    $out .= '</div>'; // #wcr-windmap-wrap
-    
-    return $out;
-}
-
-/**
- * [wcr_wetter] – Wetter-Anzeige
- * Zeigt aktuelles Wetter und 7-Tage-Vorhersage
- */
-function wcr_sc_wetter( $atts ) {
-    wp_enqueue_script( 'wcr-wetter', WCR_DS_URL . 'assets/js/wcr-wetter.js', array(), '3.2.0', true );
-    
-    $out  = '<div id="wetter-wrap">';
-    
-    // Header
-    $out .= '<header>';
-    $out .= '<div>';
-    $out .= '<div id="w-location">Ruhlsdorf</div>';
-    $out .= '<div style="font-size:1.2rem;color:#64748b;">Aktuelles Wetter</div>';
-    $out .= '</div>';
-    $out .= '<div>';
-    $out .= '<div id="clock-time">00:00</div>';
-    $out .= '<div id="clock-date">Montag, 1. Januar</div>';
-    $out .= '</div>';
-    $out .= '</header>';
-    
-    // Main
-    $out .= '<main>';
-    $out .= '<div class="current-hero">';
-    $out .= '<div class="hero-icon" id="cur-icon"></div>';
-    $out .= '<div>';
-    $out .= '<div class="hero-temp" id="cur-temp">--<span class="hero-unit">&deg;</span></div>';
-    $out .= '<div class="hero-desc" id="cur-desc">Laden...</div>';
-    $out .= '</div>';
-    $out .= '</div>';
-    $out .= '<div class="current-details">';
-    $out .= '<div class="detail-card glass"><div class="dc-label">Gefühlt</div><div class="dc-value" id="cur-feel">--&deg;</div></div>';
-    $out .= '<div class="detail-card glass"><div class="dc-label">Wind</div><div class="dc-value" id="cur-wind">-- <span class="dc-sub">km/h</span></div></div>';
-    $out .= '<div class="detail-card glass"><div class="dc-label">Regenwahrsch.</div><div class="dc-value" id="cur-rain">-- <span class="dc-sub">%</span></div></div>';
-    $out .= '<div class="detail-card glass"><div class="dc-label">Sonnenuntergang</div><div class="dc-value" id="cur-sunset">--:--</div></div>';
-    $out .= '</div>';
-    $out .= '</main>';
-    
-    // Footer (Forecast)
-    $out .= '<footer id="forecast-grid"></footer>';
-    
-    $out .= '</div>'; // #wetter-wrap
-    
+function wcr_sc_eis( $atts ) {
+    $out  = '<div id="drinks-display"></div>' . "\n";
+    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
+    $out .= 'WCR.renderDrinksList("drinks-display",';
+    $out .= '[{label:"Eis",types:["obenlinks","obenrechts","untenlinks","untenrechts"]}],';
+    $out .= '"/wp-json/wakecamp/v1/ice"';
+    $out .= ');});</script>' . "\n";
     return $out;
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   SPECIAL SHORTCODES
-   Komplexe Animationen und Interaktionen
+   PREIS-KARTEN
+   Zeigen Preise für Services aus verschiedenen Tabellen
 ════════════════════════════════════════════════════════════════════════════ */
 
 /**
- * [wcr_starter_pack] – Starter-Pack Animation
- * Zeigt animierte Produkt-Kombination mit GSAP
- * Lädt GSAP-Bibliothek dynamisch
+ * [wcr_cable] – Cablepark-Preise
+ * 
+ * ZEIGT: Tickets, Verleih, Spezial aus Tabelle `cable`
+ * API: /wp-json/wakecamp/v1/cable
+ * RENDERER: WCR.renderDrinksList()
  */
-function wcr_sc_starter_pack( $atts ) {
-    wcr_ds_load_gsap();
-    wp_enqueue_script( 'wcr-starter-pack', WCR_DS_URL . 'assets/js/wcr-starter-pack.js', array('gsap'), WCR_DS_VERSION, true );
-    
-    return '<div id="sp-display"></div>' . "\n";
+function wcr_sc_cable( $atts ) {
+    $out  = '<div id="drinks-display"></div>' . "\n";
+    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
+    $out .= 'WCR.renderDrinksList("drinks-display",';
+    $out .= '[{label:"Tickets",types:["Ticket","ticket","ticket-s","ticket-e","ticket-ed","ticket-a","ticket-d"]},';
+    $out .= '{label:"Verleih",types:["board","hardware"]},';
+    $out .= '{label:"Spezial",types:["spezial"]}],';
+    $out .= '"/wp-json/wakecamp/v1/cable"';
+    $out .= ');});</script>' . "\n";
+    return $out;
+}
+
+/**
+ * [wcr_camping] – Camping-Preise
+ * 
+ * ZEIGT: Personen, Übernachtung, Extras aus Tabelle `camping`
+ * API: /wp-json/wakecamp/v1/camping
+ * RENDERER: WCR.renderDrinksList()
+ */
+function wcr_sc_camping( $atts ) {
+    $out  = '<div id="drinks-display"></div>' . "\n";
+    $out .= '<script>document.addEventListener("DOMContentLoaded",function(){';
+    $out .= 'WCR.renderDrinksList("drinks-display",';
+    $out .= '[{label:"Personen",types:["personen"]},';
+    $out .= '{label:"Fahrzeuge & Übernachtung",types:["night"]},';
+    $out .= '{label:"Extras",types:["extra"]}],';
+    $out .= '"/wp-json/wakecamp/v1/camping"';
+    $out .= ');});</script>' . "\n";
+    return $out;
 }
