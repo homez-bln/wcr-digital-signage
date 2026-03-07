@@ -2,11 +2,12 @@
 /**
  * DATEI: be/api/toggle_media.php
  * Reihenfolge: auth (session_start) ZUERST → dann header() → dann Logik
- * v3: + CSRF-Schutz + Token-Rotation mit Frontend-Update
+ * v4: + Sichere Fehlerbehandlung (kein Exception-Leaking)
  */
 
 // 1. Auth als Allererstes (session_start() ist hier drin)
 require_once __DIR__ . '/../inc/auth.php';
+require_once __DIR__ . '/../inc/error_handler.php';
 require_once __DIR__ . "/../inc/db.php";
 require_login();
 
@@ -21,10 +22,10 @@ if (!wcr_verify_csrf_silent()) {
     exit(json_encode(['ok' => false, 'error' => 'CSRF-Token ungültig']));
 }
 
-// ── Whitelist ──────────────────────────────────────────────────────────────────────
+// ── Whitelist ─────────────────────────────────────────────────────────────────────
 $ALLOWED_FOLDERS = ['ticket'];
 
-// ── Input lesen ──────────────────────────────────────────────────────────────────────
+// ── Input lesen ─────────────────────────────────────────────────────────────────────
 $raw  = file_get_contents('php://input');
 $data = json_decode($raw, true);
 
@@ -32,7 +33,7 @@ $folder    = isset($data['folder'])    ? trim((string)$data['folder'])   : '';
 $filename  = isset($data['filename'])  ? trim((string)$data['filename']) : '';
 $is_active = isset($data['is_active']) ? (int)$data['is_active']         : -1;
 
-// ── Validierung ──────────────────────────────────────────────────────────────────────
+// ── Validierung ─────────────────────────────────────────────────────────────────────
 if (empty($folder) || empty($filename)) {
     exit(json_encode(['ok' => false, 'error' => 'folder und filename fehlen']));
 }
@@ -46,7 +47,7 @@ if (!preg_match('/^[a-zA-Z0-9._\\- ]+$/', $filename)) {
     exit(json_encode(['ok' => false, 'error' => 'Ungültiger Dateiname']));
 }
 
-// ── DB Upsert ──────────────────────────────────────────────────────────────────────
+// ── DB Upsert ─────────────────────────────────────────────────────────────────────
 try {
     $stmt = $db->prepare("
         INSERT INTO media_files (folder, filename, is_active)
@@ -56,13 +57,20 @@ try {
     $stmt->execute([$folder, $filename, $is_active, $is_active]);
 
     // ── Token nach erfolgreicher Rotation zurückgeben ──
-    // wcr_verify_csrf_silent() hat bereits neues Token generiert,
-    // Frontend muss es für nächsten Request aktualisieren
     echo json_encode([
         'ok' => true,
         'csrf_token' => wcr_csrf_token()
     ]);
 
-} catch (PDOException $e) {
-    echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+} catch (Exception $e) {
+    // ── Internes Logging: Volle Fehlerdetails ──
+    wcr_log_error('toggle_media', $e, [
+        'folder' => $folder,
+        'filename' => $filename,
+        'is_active' => $is_active
+    ]);
+    
+    // ── User-Ausgabe: Generisch (kein PDOException-Message) ──
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'error' => 'Datenbank-Fehler']);
 }
