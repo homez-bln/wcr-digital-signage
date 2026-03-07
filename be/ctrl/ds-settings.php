@@ -1,8 +1,10 @@
 <?php
 /**
- * ctrl/ds-settings.php — DS Zentraler Controller v6
+ * ctrl/ds-settings.php — DS Zentraler Controller v7
  * Schreiben + Lesen komplett über WP REST API (update_option / get_option).
  * PDO-User hat kein Schreibrecht auf wp_options — WP-Brücke löst das.
+ * 
+ * v7: + CSRF-Schutz für alle POST-Aktionen
  */
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
@@ -42,7 +44,7 @@ $COLORS = [
     'clr_bg_dark' => ['Hintergrund Dunkel', 'Karten-Hintergrund'],
 ];
 
-// ── WP REST API Hilfsfunktionen ───────────────────────────────
+// ── WP REST API Hilfsfunktionen ────────────────────────────────────
 
 function dsc_curl(string $url, ?array $postData = null): array {
     $ch = curl_init($url);
@@ -119,128 +121,127 @@ if (!function_exists('ov')) {
     function ov(array $o, string $k): string { return htmlspecialchars($o[$k] ?? ''); }
 }
 
-// ── POST-Handler ──────────────────────────────────────────────
+// ── POST-Handler ────────────────────────────────────────────────
 $msg        = '';
 $msgType    = '';
 $savedOpts  = null;
 $savedTheme = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = trim($_POST['action'] ?? '');
+    // ── CSRF-Schutz: ALLE POST-Aktionen validieren ──
+    if (!wcr_verify_csrf(false)) {
+        $msg = 'Sicherheitsprüfung fehlgeschlagen. Bitte Seite neu laden und erneut versuchen.';
+        $msgType = 'error';
+    } else {
+        $action = trim($_POST['action'] ?? '');
 
-    // ── Theme ────────────────────────────────────────────────
-    if ($action === 'theme') {
-        $t = trim($_POST['theme'] ?? '');
-        if (isset($THEMES[$t])) {
-            $r = dsc_api_save(['action' => 'theme', 'theme' => $t]);
+        // ── Theme ────────────────────────────────────────────────
+        if ($action === 'theme') {
+            $t = trim($_POST['theme'] ?? '');
+            if (isset($THEMES[$t])) {
+                $r = dsc_api_save(['action' => 'theme', 'theme' => $t]);
+                if ($r['ok']) {
+                    $msg = 'Theme „' . $THEMES[$t]['name'] . '“ aktiviert — alle DS-Screens zeigen sofort den neuen Stil.';
+                    $msgType    = 'ok';
+                    $savedTheme = $t;
+                } else {
+                    $msg = 'Fehler beim Speichern des Themes: ' . $r['error'];
+                    $msgType = 'error';
+                }
+            }
+        }
+
+        // ── Farben / Font speichern ──────────────────────────────────────────
+        if ($action === 'save') {
+            $new = [];
+            foreach (array_keys($COLORS) as $k) {
+                $v = trim($_POST[$k] ?? '');
+                $new[$k] = (preg_match('/^#[0-9a-fA-F]{3,8}$/', $v) || preg_match('/^rgba?\([\d,.\s]+\)$/', $v))
+                    ? $v : $DEFAULTS[$k];
+            }
+            $glass = trim($_POST['clr_bg_glass'] ?? '');
+            $new['clr_bg_glass'] = preg_match('/^rgba?\([\d,.\s]+\)$/', $glass) ? $glass : $DEFAULTS['clr_bg_glass'];
+            $new['font_family']  = in_array($_POST['font_family'] ?? '', $FONTS, true)
+                ? $_POST['font_family'] : $DEFAULTS['font_family'];
+            $current = dsc_api_load($DEFAULTS);
+            $new['viewport_w'] = $current['opts']['viewport_w'] ?? $DEFAULTS['viewport_w'];
+            $new['viewport_h'] = $current['opts']['viewport_h'] ?? $DEFAULTS['viewport_h'];
+            $toSave = array_merge($DEFAULTS, $new);
+            $r = dsc_api_save(['action' => 'save', 'options' => $toSave]);
             if ($r['ok']) {
-                $msg = 'Theme „' . $THEMES[$t]['name'] . '" aktiviert — alle DS-Screens zeigen sofort den neuen Stil.';
-                $msgType    = 'ok';
-                $savedTheme = $t;
+                $msg       = 'Gespeichert — Änderungen sind sofort auf allen DS-Seiten aktiv.';
+                $msgType   = 'ok';
+                $savedOpts = $toSave;
             } else {
-                $msg = 'Fehler beim Speichern des Themes: ' . $r['error'];
+                $msg = 'Fehler beim Speichern: ' . $r['error'];
+                $msgType = 'error';
+            }
+        }
+
+        // ── Reset ────────────────────────────────────────────────
+        if ($action === 'reset') {
+            $r = dsc_api_save(['action' => 'reset']);
+            if ($r['ok']) {
+                $msg       = 'Einstellungen auf Standard zurückgesetzt.';
+                $msgType   = 'ok';
+                $savedOpts = $DEFAULTS;
+            } else {
+                $msg = 'Fehler beim Zurücksetzen: ' . $r['error'];
+                $msgType = 'error';
+            }
+        }
+
+        // ── Instagram Settings speichern ──────────────────────────────────────────
+        if ($action === 'ig_save') {
+            $ig_fields = [
+                'wcr_instagram_token'          => 'strval',
+                'wcr_instagram_user_id'        => 'strval',
+                'wcr_instagram_hashtags'       => 'strval',
+                'wcr_instagram_excluded'       => 'strval',
+                'wcr_instagram_location_label' => 'strval',
+                'wcr_instagram_cta_text'       => 'strval',
+                'wcr_instagram_qr_url'         => 'strval',
+                'wcr_instagram_max_age_value'  => 'intval',
+                'wcr_instagram_max_age_unit'   => 'strval',
+                'wcr_instagram_max_posts'      => 'intval',
+                'wcr_instagram_refresh'        => 'intval',
+                'wcr_instagram_new_hours'      => 'intval',
+                'wcr_instagram_video_pool'     => 'intval',
+                'wcr_instagram_video_count'    => 'intval',
+                'wcr_instagram_min_likes'      => 'intval',
+            ];
+            $ig_toggles = [
+                'wcr_instagram_use_tagged','wcr_instagram_use_hashtag','wcr_instagram_show_user',
+                'wcr_instagram_cta_active','wcr_instagram_qr_active','wcr_instagram_weekly_best',
+            ];
+            $payload = ['wcr_secret' => DSC_WP_SECRET, 'action' => 'ig_save', 'options' => []];
+            foreach ($ig_fields as $key => $fn) {
+                if (isset($_POST[$key])) $payload['options'][$key] = $fn($_POST[$key]);
+            }
+            foreach ($ig_toggles as $t) {
+                $payload['options'][$t] = isset($_POST[$t]) ? 1 : 0;
+            }
+            // Cache leeren mitschicken
+            $payload['options']['wcr_instagram_flush_cache'] = 1;
+
+            $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings', $payload);
+            if ($r['ok'] && !empty($r['json']['ok'])) {
+                $msg = '📸 Instagram-Einstellungen gespeichert & Cache geleert.';
+                $msgType = 'ok';
+            } else {
+                $msg = 'Fehler beim Speichern der Instagram-Einstellungen: ' . ($r['err'] ?: 'Unbekannt');
                 $msgType = 'error';
             }
         }
     }
-
-    // ── Farben / Font speichern ───────────────────────────────
-    if ($action === 'save') {
-        $new = [];
-        foreach (array_keys($COLORS) as $k) {
-            $v = trim($_POST[$k] ?? '');
-            $new[$k] = (preg_match('/^#[0-9a-fA-F]{3,8}$/', $v) || preg_match('/^rgba?\([\d,.\s]+\)$/', $v))
-                ? $v : $DEFAULTS[$k];
-        }
-        $glass = trim($_POST['clr_bg_glass'] ?? '');
-        $new['clr_bg_glass'] = preg_match('/^rgba?\([\d,.\s]+\)$/', $glass) ? $glass : $DEFAULTS['clr_bg_glass'];
-        $new['font_family']  = in_array($_POST['font_family'] ?? '', $FONTS, true)
-            ? $_POST['font_family'] : $DEFAULTS['font_family'];
-        $current = dsc_api_load($DEFAULTS);
-        $new['viewport_w'] = $current['opts']['viewport_w'] ?? $DEFAULTS['viewport_w'];
-        $new['viewport_h'] = $current['opts']['viewport_h'] ?? $DEFAULTS['viewport_h'];
-        $toSave = array_merge($DEFAULTS, $new);
-        $r = dsc_api_save(['action' => 'save', 'options' => $toSave]);
-        if ($r['ok']) {
-            $msg       = 'Gespeichert — Änderungen sind sofort auf allen DS-Seiten aktiv.';
-            $msgType   = 'ok';
-            $savedOpts = $toSave;
-        } else {
-            $msg = 'Fehler beim Speichern: ' . $r['error'];
-            $msgType = 'error';
-        }
-    }
-
-    // ── Reset ────────────────────────────────────────────────
-    if ($action === 'reset') {
-        $r = dsc_api_save(['action' => 'reset']);
-        if ($r['ok']) {
-            $msg       = 'Einstellungen auf Standard zurückgesetzt.';
-            $msgType   = 'ok';
-            $savedOpts = $DEFAULTS;
-        } else {
-            $msg = 'Fehler beim Zurücksetzen: ' . $r['error'];
-            $msgType = 'error';
-        }
-    }
-
-    // ── Instagram Settings speichern ─────────────────────────
-    if ($action === 'ig_save') {
-        $ig_fields = [
-            'wcr_instagram_token'          => 'strval',
-            'wcr_instagram_user_id'        => 'strval',
-            'wcr_instagram_hashtags'       => 'strval',
-            'wcr_instagram_excluded'       => 'strval',
-            'wcr_instagram_location_label' => 'strval',
-            'wcr_instagram_cta_text'       => 'strval',
-            'wcr_instagram_qr_url'         => 'strval',
-            'wcr_instagram_max_age_value'  => 'intval',
-            'wcr_instagram_max_age_unit'   => 'strval',
-            'wcr_instagram_max_posts'      => 'intval',
-            'wcr_instagram_refresh'        => 'intval',
-            'wcr_instagram_new_hours'      => 'intval',
-            'wcr_instagram_video_pool'     => 'intval',
-            'wcr_instagram_video_count'    => 'intval',
-            'wcr_instagram_min_likes'      => 'intval',
-        ];
-        $ig_toggles = [
-            'wcr_instagram_use_tagged','wcr_instagram_use_hashtag','wcr_instagram_show_user',
-            'wcr_instagram_cta_active','wcr_instagram_qr_active','wcr_instagram_weekly_best',
-        ];
-        $payload = ['wcr_secret' => DSC_WP_SECRET, 'action' => 'ig_save', 'options' => []];
-        foreach ($ig_fields as $key => $fn) {
-            if (isset($_POST[$key])) $payload['options'][$key] = $fn($_POST[$key]);
-        }
-        foreach ($ig_toggles as $t) {
-            $payload['options'][$t] = isset($_POST[$t]) ? 1 : 0;
-        }
-        // Cache leeren mitschicken
-        $payload['options']['wcr_instagram_flush_cache'] = 1;
-
-        $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings', $payload);
-        if ($r['ok'] && !empty($r['json']['ok'])) {
-            $msg = '📸 Instagram-Einstellungen gespeichert & Cache geleert.';
-            $msgType = 'ok';
-        } else {
-            $msg = 'Fehler beim Speichern der Instagram-Einstellungen: ' . ($r['err'] ?: 'Unbekannt');
-            $msgType = 'error';
-        }
-    }
 }
 
-// ── Laden ─────────────────────────────────────────────────────
-if ($savedOpts !== null || $savedTheme !== null) {
-    $base        = dsc_api_load($DEFAULTS);
-    $opts        = $savedOpts  ?? $base['opts'];
-    $activeTheme = $savedTheme ?? $base['theme'];
-} else {
-    $loaded      = dsc_api_load($DEFAULTS);
-    $opts        = $loaded['opts'];
-    $activeTheme = $loaded['theme'];
-}
+// ── Laden ──────────────────────────────────────────────────────────────
+$loaded      = dsc_api_load($DEFAULTS);
+$opts        = $savedOpts  ?? $loaded['opts'];
+$activeTheme = $savedTheme ?? $loaded['theme'];
 
-// ── Instagram-Options aus WP lesen ────────────────────────────
-// (direkte REST-Abfrage via /options, Fallback auf Defaults)
+// ── Instagram-Options aus WP lesen ────────────────────────────────────────────
 function ig_get(string $key, $default = '') {
     static $cache = null;
     if ($cache === null) {
@@ -275,7 +276,7 @@ if ($ig_token && $ig_user_id) {
 <title>DS Controller</title>
 <link id="gf-link" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= rawurlencode($opts['font_family']==='Segoe UI'?'Inter':$opts['font_family']) ?>:wght@400;600;700;800&display=swap">
 <style>
-/* ── Instagram Block Styles ──────────────────────────────── */
+/* ── Instagram Block Styles ────────────────────────────────────── */
 .ig-block{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px;margin-bottom:20px;}
 .ig-block-title{font-size:14px;font-weight:700;margin:0 0 3px;display:flex;align-items:center;gap:8px;}
 .ig-block-sub{font-size:12px;color:var(--text-muted);margin:0 0 20px;}
@@ -328,6 +329,7 @@ if ($ig_token && $ig_user_id) {
       $blur = $key==='glass'  ? 'blur(8px)' : 'none';
     ?>
     <form method="POST">
+      <?= wcr_csrf_field() ?>
       <input type="hidden" name="action" value="theme">
       <input type="hidden" name="theme"  value="<?= $key ?>">
       <button type="submit" class="theme-card <?= $isActive ? 'theme-card--on' : '' ?>">
@@ -339,7 +341,7 @@ if ($ig_token && $ig_user_id) {
           <?php endif; ?>
           <div style="position:relative;z-index:1;height:17%;display:flex;align-items:center;gap:5px;padding:0 7%;border-bottom:1px solid rgba(255,255,255,.05)">
             <div style="flex:1;height:1px;background:rgba(103,148,103,.4)"></div>
-            <span style="font-size:5px;font-weight:700;letter-spacing:3px;white-space:nowrap;color:<?= $key==='aurora'?'#019ee3':'#679467' ?>">● WCR ●</span>
+            <span style="font-size:5px;font-weight:700;letter-spacing:3px;white-space:nowrap;color:<?= $key==='aurora'?'#019ee3':'#679467' ?>● WCR ●</span>
             <div style="flex:1;height:1px;background:rgba(103,148,103,.4)"></div>
           </div>
           <div style="position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:4px 4%">
@@ -377,6 +379,7 @@ if ($ig_token && $ig_user_id) {
 
 <!-- BLOCK 2 — EINSTELLUNGEN + VORSCHAU -->
 <form method="POST" id="dsc-form">
+<?= wcr_csrf_field() ?>
 <input type="hidden" name="action" value="save">
 <div class="dsc-2col">
 
@@ -491,12 +494,16 @@ if ($ig_token && $ig_user_id) {
 
 </div>
 </form>
-<form method="POST" id="rst-form" style="display:none"><input type="hidden" name="action" value="reset"></form>
+<form method="POST" id="rst-form" style="display:none">
+<?= wcr_csrf_field() ?>
+<input type="hidden" name="action" value="reset">
+</form>
 
-<!-- ═══════════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════════════════════
      BLOCK 3 — INSTAGRAM FEED EINSTELLUNGEN
-════════════════════════════════════════════════════════════ -->
+═══════════════════════════════════════════════════════════════ -->
 <form method="POST" id="ig-form">
+<?= wcr_csrf_field() ?>
 <input type="hidden" name="action" value="ig_save">
 <div class="ig-block">
   <div class="ig-block-title">📸 Instagram Feed</div>
