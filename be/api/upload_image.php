@@ -1,7 +1,7 @@
 <?php
 /**
  * api/upload_image.php — Bild-Upload für Produkte
- * v9: Nur für admin und cernal + CSRF-Schutz
+ * v10: + CSRF-Token-Rückgabe nach Rotation
  *
  * POST-Parameter:
  *   file    → Bilddatei (multipart)
@@ -13,7 +13,7 @@
  *   1. Bild auf max. 800×800 skalieren (quadratisch, Cover-Modus)
  *   2. Als WebP oder JPEG in /uploads/products/{table}/ speichern
  *   3. bild_url in DB aktualisieren
- *   4. JSON zurückgeben
+ *   4. JSON zurückgeben (inkl. neues CSRF-Token)
  */
 
 require_once __DIR__ . '/../inc/auth.php';
@@ -56,7 +56,14 @@ if (!empty($_POST['delete'])) {
             }
         }
         $pdo->prepare("UPDATE `{$table}` SET bild_url = NULL WHERE nummer = ?")->execute([$nummer]);
-        exit(json_encode(['ok' => true]));
+        
+        // ── Token nach erfolgreicher Rotation zurückgeben ──
+        // wcr_verify_csrf_silent() hat bereits neues Token generiert,
+        // Frontend muss es für nächsten Request aktualisieren
+        exit(json_encode([
+            'ok' => true,
+            'csrf_token' => wcr_csrf_token()
+        ]));
     } catch (Exception $e) {
         exit(json_encode(['ok' => false, 'error' => $e->getMessage()]));
     }
@@ -172,4 +179,12 @@ try {
     exit(json_encode(['ok' => false, 'error' => 'DB-Fehler: ' . $e->getMessage()]));
 }
 
-exit(json_encode(['ok' => true, 'url' => $url, 'filename' => $filename]));
+// ── Erfolg + Token nach erfolgreicher Rotation zurückgeben ──
+// wcr_verify_csrf_silent() hat bereits neues Token generiert,
+// Frontend muss es für nächsten Upload aktualisieren
+exit(json_encode([
+    'ok' => true,
+    'url' => $url,
+    'filename' => $filename,
+    'csrf_token' => wcr_csrf_token()
+]));
