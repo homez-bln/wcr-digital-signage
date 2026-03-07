@@ -45,7 +45,7 @@ function clearTimes(date) {
     if (!confirm('Start- und Endzeit für ' + date + ' wirklich löschen?')) return;
     const startInput = document.getElementById('start-' + date);
     const endInput   = document.getElementById('end-'   + date);
-    const btn        = document.querySelector('[onclick="clearTimes(\'' + date + '\')"]');
+    const btn        = document.querySelector('[onclick="clearTimes(\\'' + date + '\\')"]');
     if (startInput) { startInput.value = ''; startInput.classList.add('saving'); }
     if (endInput)   { endInput.value   = ''; endInput.classList.add('saving'); endInput.classList.add('is-fallback'); }
     sendData(date, 'start_time', '', () => {
@@ -96,7 +96,14 @@ function sendData(date, col, val, onSuccess, onError, extra = {}) {
     fetch('../api/save_opening_hours.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ datum: date, field: col, value: val, ...extra })
+        body: JSON.stringify({ 
+            datum: date, 
+            field: col, 
+            value: val, 
+            // ── CSRF-Token anhängen ──
+            csrf_token: document.body.dataset.csrf || '',
+            ...extra 
+        })
     })
     .then(r => r.json())
     .then(d => { if (d.success) onSuccess(); else onError(d.error || 'Unbekannter Fehler'); })
