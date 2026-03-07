@@ -2,6 +2,7 @@
 ob_start();
 
 require_once __DIR__ . '/../inc/auth.php';
+require_once __DIR__ . '/../inc/error_handler.php';
 require_once __DIR__ . "/../inc/db.php";
 require_login();
 
@@ -14,36 +15,37 @@ if (!wcr_verify_csrf_silent()) {
     exit(json_encode(['success' => false, 'error' => 'CSRF-Token ungültig']));
 }
 
-// ── Input ──────────────────────────────────────────────────────────────────────
+// ── Input ─────────────────────────────────────────────────────────────────────
 $body  = json_decode(file_get_contents('php://input'), true);
 $datum = trim($body['datum'] ?? '');
 $field = trim($body['field'] ?? '');
 $value =      $body['value'] ?? '';
 $preserveStart = trim($body['preserve_start_time'] ?? '');
 
-// ── Validierung ──────────────────────────────────────────────────────────────────────
+// ── Validierung ─────────────────────────────────────────────────────────────────
 $allowedFields = ['start_time', 'end_time', 'course1', 'course2',
                   'course1_text', 'course2_text', 'is_closed'];
 
 if (empty($datum) || !in_array($field, $allowedFields, true)) {
+    // ── Sichere User-Meldung: Keine internen Details ──
     echo json_encode(['success' => false, 'error' => 'Ungültige Parameter']);
     exit;
 }
 
-// ── DB ──────────────────────────────────────────────────────────────────────
+// ── DB ─────────────────────────────────────────────────────────────────────
 $db = isset($conn) ? $conn : (isset($pdo) ? $pdo : null);
 
 if (!$db) {
-    echo json_encode(['success' => false, 'error' => 'Keine DB']);
+    echo json_encode(['success' => false, 'error' => 'Datenbankverbindung fehlgeschlagen']);
     exit;
 }
 
-// PDO: Exceptions aktivieren damit Fehler sichtbar werden
+// ── PDO: Exceptions aktivieren für sauberes Error-Handling ──
 if ($db instanceof PDO) {
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 }
 
-// ── SQL ──────────────────────────────────────────────────────────────────────
+// ── SQL ─────────────────────────────────────────────────────────────────────
 try {
 
     if ($db instanceof PDO) {
@@ -69,7 +71,7 @@ try {
             ]);
         }
 
-        // ── Token nach erfolgreicher Rotation zurückgeben ──
+        // ── Erfolg: Token nach erfolgreicher Rotation zurückgeben ──
         // wcr_verify_csrf_silent() hat bereits neues Token generiert,
         // Frontend muss es für nächsten Request aktualisieren
         echo json_encode([
@@ -96,19 +98,27 @@ try {
 
         $ok = $stmt->execute();
         
-        // ── Token nach erfolgreicher Rotation zurückgeben ──
+        // ── Erfolg: Token nach erfolgreicher Rotation zurückgeben ──
         echo json_encode([
             'success' => $ok,
-            'csrf_token' => wcr_csrf_token(),
-            'mysqli_error' => $db->error ?: null
+            'csrf_token' => wcr_csrf_token()
         ]);
     }
 
 } catch (Exception $e) {
-    // Gibt den genauen SQL-Fehler zurück statt 500
+    // ── Internes Logging: Volle Fehlerdetails für Debugging ──
+    wcr_log_error('save_opening_hours', $e, [
+        'datum' => $datum,
+        'field' => $field,
+        'db_type' => get_class($db)
+    ]);
+    
+    // ── User-Ausgabe: Generisch und sicher ──
+    // Kein $e->getMessage() (kann SQL, Pfade, interne Details enthalten)
+    // Kein SQL-String (kann Struktur der DB offenlegen)
+    http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => $e->getMessage(),
-        'sql'     => $sql ?? 'n/a'
+        'error'   => 'Speichern fehlgeschlagen'
     ]);
 }
