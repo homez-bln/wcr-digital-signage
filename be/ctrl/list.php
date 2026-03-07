@@ -8,7 +8,7 @@
  * FIX v6: Kein HTTP-Umweg mehr. Liest direkt aus $pdo statt erst
  *         einen cURL-Request an get_tickets.php zu machen.
  *
- * SECURITY v8: Erfordert edit_products Permission (cernal, admin)
+ * SECURITY v9: Erfordert edit_products Permission + CSRF-Token
  *
  * Aufruf:  /be/ctrl/list.php?t=cable
  *                                ^--- ice | cable | camping | extra
@@ -21,7 +21,7 @@ wcr_require('edit_products');
 
 $_canPrice = wcr_can('edit_prices');
 
-// ── Whitelist ──────────────────────────────────────────
+// ── Whitelist ──────────────────────────────────────────────────────
 const LIST_TABLES = [
     'ice'     => ['label' => 'Eis',     'icon' => '🍦'],
     'cable'   => ['label' => 'Cable',   'icon' => '🏄'],
@@ -55,7 +55,7 @@ ksort($grouped);
   <meta charset="UTF-8">
   <title>Verwaltung: <?= htmlspecialchars($PAGE_TITLE) ?></title>
 </head>
-<body class="bo">
+<body class="bo" data-csrf="<?= wcr_csrf_attr() ?>">
 <?php include __DIR__ . '/../inc/menu.php'; ?>
 
 <div class="header-controls">
@@ -159,6 +159,11 @@ ksort($grouped);
 <script>
 const TABLE = '<?= $DB_TABLE ?>';
 
+// ── CSRF-Token aus <body data-csrf="..."> lesen ──
+function getCsrfToken() {
+    return document.body.getAttribute('data-csrf') || '';
+}
+
 function toggleGroup(h) {
     const key  = h.dataset.group;
     const body = document.querySelector('[data-group-body="' + key + '"]');
@@ -199,10 +204,19 @@ function upd(el, mode) {
     }
     const s = document.getElementById('s-' + nr);
     s.textContent = '…'; s.className = 'status-msg visible';
+    
+    // ── CSRF-Token mitschicken ──
+    const params = new URLSearchParams();
+    params.append('table', TABLE);
+    params.append('nummer', nr);
+    params.append('mode', mode);
+    params.append('value', val);
+    params.append('csrf_token', getCsrfToken());
+    
     fetch('../update_ticket.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'table=' + TABLE + '&nummer=' + nr + '&mode=' + mode + '&value=' + encodeURIComponent(val)
+        body: params.toString()
     })
     .then(r => r.json())
     .then(d => {
