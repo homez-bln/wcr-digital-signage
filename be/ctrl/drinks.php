@@ -3,10 +3,14 @@
  * ctrl/drinks.php
  * FIX v6: Direkter DB-Zugriff statt cURL → get_tickets.php → DB.
  *         (War vorher 2 DB-Verbindungen + 1 HTTP-Request pro Seitenaufruf)
+ * SECURITY v8: Erfordert edit_products Permission (cernal, admin)
  */
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
-require_login();
+
+// ── SECURITY: Login + Permission erforderlich ──
+wcr_require('edit_products');
+
 $_canPrice = wcr_can('edit_prices');
 
 $DB_TABLE   = 'drinks';
