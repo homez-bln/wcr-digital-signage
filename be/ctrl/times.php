@@ -41,7 +41,7 @@ require_once __DIR__ . '/../functions/times_data.php';
   <title>Verwaltung: <?= htmlspecialchars($PAGE_TITLE) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body class="bo">
+<body class="bo" data-csrf="<?= wcr_csrf_attr() ?>">
 
 <?php include __DIR__ . '/../inc/menu.php'; ?>
 
@@ -125,7 +125,7 @@ require_once __DIR__ . '/../functions/times_data.php';
           $txt2     = $savedData[$dateStr]['course2_text'] ?? $defT2;
 
           if (!in_array($kw, $renderedKws)) {
-              echo '<div class="cell-kw" style="grid-row: span ' . $daysByKw[$kw] . ';">'
+              echo '<div class="cell-kw" style="grid-row: span ' . $daysByKw[$kw] . ';'>'
                  . '<span>KW ' . $kw . '</span></div>';
               $renderedKws[] = $kw;
           }
