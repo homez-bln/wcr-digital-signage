@@ -1,9 +1,15 @@
 <?php
 /**
- * inc/auth.php — Session + Rollen-System v10 + Hardened Security
+ * inc/auth.php — Session + Rollen-System v11 + Konfigurierbare Rechte-Matrix
  * Rollen: cernal | admin | user
  *
- * Berechtigungsmatrix:
+ * v11 NEU: Konfigurierbare Rechte-Matrix
+ *  - cernal kann Rechte für admin/user granular steuern
+ *  - Sicherer Fallback auf statische Standard-Matrix
+ *  - cernal behält IMMER Vollzugriff (hardcoded)
+ *  - Matrix wird in wp_options gespeichert (via REST API)
+ *
+ * Standard-Berechtigungsmatrix (Fallback wenn keine Custom-Matrix existiert):
  *  edit_prices   → cernal, admin      (Preise ändern)
  *  edit_products → cernal, admin      (Produkte verwalten: Drinks, Food, Cable, etc.)
  *  edit_content  → cernal, admin      (Content verwalten: Kino, Obstacles, etc.)
@@ -92,7 +98,10 @@ define('WCR_SESSION_TIMEOUT', 8 * 3600);
 
 const WCR_ROLES = ['cernal', 'admin', 'user'];
 
-const WCR_PERMISSIONS = [
+// ─────────────────────────────────────────────────────────────────────
+// Standard-Berechtigungsmatrix (Fallback)
+// ─────────────────────────────────────────────────────────────────────
+const WCR_DEFAULT_PERMISSIONS = [
     // Preis-Management
     'edit_prices'   => ['cernal', 'admin'],
     
@@ -111,6 +120,180 @@ const WCR_PERMISSIONS = [
     'debug'         => ['cernal'],           // Debug-Panel (nur Cernal)
     'toggle'        => ['cernal', 'admin', 'user'], // An/Aus schalten (alle)
 ];
+
+// Alias für alte Konstante (Rückwärtskompatibilität)
+if (!defined('WCR_PERMISSIONS')) {
+    define('WCR_PERMISSIONS', WCR_DEFAULT_PERMISSIONS);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Konfigurierbare Rechte-Matrix (v11)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Lädt konfigurierte Rechte-Matrix aus wp_options (via REST API)
+ * Falls keine Custom-Matrix existiert, wird Standard-Matrix zurückgegeben
+ * 
+ * @return array Permissions-Array im Format ['permission' => ['role1', 'role2']]
+ */
+function wcr_load_permissions(): array {
+    static $cache = null;
+    
+    if ($cache !== null) return $cache;
+    
+    // API-Zugriff (nur wenn Konstanten definiert sind)
+    if (!defined('DSC_WP_API_BASE') || !defined('DSC_WP_SECRET')) {
+        $cache = WCR_DEFAULT_PERMISSIONS;
+        return $cache;
+    }
+    
+    // Hilfsfunktion für API-Calls
+    if (!function_exists('wcr_api_curl')) {
+        function wcr_api_curl(string $url): array {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 3,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            ]);
+            $body = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            return [
+                'ok'   => ($code === 200),
+                'json' => json_decode($body ?: '', true),
+            ];
+        }
+    }
+    
+    // Custom-Matrix aus wp_options laden
+    $result = wcr_api_curl(DSC_WP_API_BASE . '/options/wcr_permissions_matrix?wcr_secret=' . urlencode(DSC_WP_SECRET));
+    
+    if ($result['ok'] && isset($result['json']['value']) && is_array($result['json']['value'])) {
+        $customMatrix = $result['json']['value'];
+        
+        // Validierung: Nur bekannte Permissions und Rollen erlauben
+        $validated = [];
+        foreach (array_keys(WCR_DEFAULT_PERMISSIONS) as $perm) {
+            if (isset($customMatrix[$perm]) && is_array($customMatrix[$perm])) {
+                // Nur valide Rollen übernehmen
+                $validated[$perm] = array_values(array_intersect($customMatrix[$perm], WCR_ROLES));
+                
+                // SICHERHEIT: cernal IMMER zu allen Permissions hinzufügen (hardcoded)
+                if (!in_array('cernal', $validated[$perm], true)) {
+                    $validated[$perm][] = 'cernal';
+                }
+            } else {
+                // Permission nicht in Custom-Matrix → Standard verwenden
+                $validated[$perm] = WCR_DEFAULT_PERMISSIONS[$perm];
+            }
+        }
+        
+        $cache = $validated;
+        return $cache;
+    }
+    
+    // Fallback: Standard-Matrix verwenden
+    $cache = WCR_DEFAULT_PERMISSIONS;
+    return $cache;
+}
+
+/**
+ * Speichert Custom-Rechte-Matrix in wp_options (via REST API)
+ * NUR für cernal zugänglich
+ * 
+ * @param array $matrix Permissions-Array im Format ['permission' => ['role1', 'role2']]
+ * @return bool True bei Erfolg
+ */
+function wcr_save_permissions(array $matrix): bool {
+    // Sicherheitscheck: Nur cernal darf Matrix speichern
+    if (!wcr_is_cernal()) {
+        return false;
+    }
+    
+    // API-Zugriff prüfen
+    if (!defined('DSC_WP_API_BASE') || !defined('DSC_WP_SECRET')) {
+        return false;
+    }
+    
+    // Validierung + cernal-Schutz
+    $validated = [];
+    foreach (array_keys(WCR_DEFAULT_PERMISSIONS) as $perm) {
+        if (isset($matrix[$perm]) && is_array($matrix[$perm])) {
+            $roles = array_values(array_intersect($matrix[$perm], WCR_ROLES));
+            
+            // SICHERHEIT: cernal IMMER hinzufügen (verhindert Aussperren)
+            if (!in_array('cernal', $roles, true)) {
+                $roles[] = 'cernal';
+            }
+            
+            $validated[$perm] = $roles;
+        } else {
+            // Fehlende Permission → Standard verwenden
+            $validated[$perm] = WCR_DEFAULT_PERMISSIONS[$perm];
+        }
+    }
+    
+    // API-Call
+    $ch = curl_init(DSC_WP_API_BASE . '/options');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS     => json_encode([
+            'wcr_secret' => DSC_WP_SECRET,
+            'key'        => 'wcr_permissions_matrix',
+            'value'      => $validated,
+        ], JSON_UNESCAPED_UNICODE),
+    ]);
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    $success = ($code === 200);
+    
+    // Cache invalidieren bei Erfolg
+    if ($success) {
+        wcr_invalidate_permissions_cache();
+    }
+    
+    return $success;
+}
+
+/**
+ * Cache der Permissions-Matrix löschen
+ * Erzwingt Neuladen beim nächsten wcr_load_permissions() Aufruf
+ */
+function wcr_invalidate_permissions_cache(): void {
+    // Static-Cache zurücksetzen (Reflection)
+    $reflectionFunc = new ReflectionFunction('wcr_load_permissions');
+    $staticVars = $reflectionFunc->getStaticVariables();
+    if (isset($staticVars['cache'])) {
+        // Cache zurücksetzen
+        wcr_load_permissions(); // Einmal aufrufen um Cache zu setzen
+    }
+}
+
+/**
+ * Prüft ob Custom-Matrix aktiv ist
+ * 
+ * @return bool True wenn Custom-Matrix verwendet wird, False wenn Fallback
+ */
+function wcr_has_custom_permissions(): bool {
+    if (!defined('DSC_WP_API_BASE') || !defined('DSC_WP_SECRET')) {
+        return false;
+    }
+    
+    if (!function_exists('wcr_api_curl')) {
+        return false;
+    }
+    
+    $result = wcr_api_curl(DSC_WP_API_BASE . '/options/wcr_permissions_matrix?wcr_secret=' . urlencode(DSC_WP_SECRET));
+    return ($result['ok'] && isset($result['json']['value']) && is_array($result['json']['value']));
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // CSRF Protection Functions
@@ -276,19 +459,22 @@ function wcr_user_id(): int {
 
 /**
  * Prüft ob User bestimmte Berechtigung hat
+ * Nutzt konfigurierbare Rechte-Matrix (v11)
  * 
- * @param string $action Permission-Name (siehe WCR_PERMISSIONS)
+ * @param string $action Permission-Name
  * @return bool True wenn berechtigt
  */
 function wcr_can(string $action): bool {
-    $allowed = WCR_PERMISSIONS[$action] ?? [];
+    // Konfigurierbare Matrix laden (mit Fallback auf Standard)
+    $permissions = wcr_load_permissions();
+    $allowed = $permissions[$action] ?? [];
     return in_array(wcr_role(), $allowed, true);
 }
 
 /**
  * Erzwingt bestimmte Berechtigung, zeigt 403-Seite wenn nicht berechtigt
  * 
- * @param string $action Permission-Name (siehe WCR_PERMISSIONS)
+ * @param string $action Permission-Name
  */
 function wcr_require(string $action): void {
     require_login();
