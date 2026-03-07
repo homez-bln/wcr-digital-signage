@@ -1,30 +1,41 @@
 <?php
 /**
  * api/update_ticket.php
- * FIX v6: Nutzt wcr_pdo() Singleton.
- *         Kein Klartext-Fehler bei ungültiger Tabelle.
+ * v10: Session-basierte CSRF-Auth statt veralteter Hardcoded-Token
+ *
+ * Interner Backend-Endpunkt für Produkt-Updates:
+ *  - Toggle stock (aktiv/inaktiv)
+ *  - Preisänderung (nur admin/cernal)
+ *  - Gruppen-Toggle (food)
+ *
+ * Wird verwendet von: be/js/ctrl-shared.js
+ * Aufgerufen aus: drinks.php, food.php, kino.php, etc.
  */
-header('Content-Type: application/json; charset=utf-8');
 
-$expectedToken = '5f581e2655f5b36d05a8ad3db821e5da4d0a0ea4dfe66314dcab1dd86bb64ed3';
-if (!hash_equals($expectedToken, (string)($_POST['token'] ?? ''))) {
-    http_response_code(403);
-    exit(json_encode(['ok' => false, 'error' => 'forbidden']));
-}
+header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
 
+// ── SECURITY 1: Login erforderlich ──
+if (!is_logged_in()) {
+    http_response_code(403);
+    exit(json_encode(['ok' => false, 'error' => 'Login erforderlich']));
+}
+
+// ── SECURITY 2: CSRF-Schutz (silent mode für JSON-API) ──
+// wcr_verify_csrf_silent() validiert Token und rotiert automatisch.
+// Frontend muss neues Token aus Response übernehmen (siehe unten).
+if (!wcr_verify_csrf_silent()) {
+    http_response_code(403);
+    exit(json_encode(['ok' => false, 'error' => 'CSRF-Token ungültig']));
+}
+
+// ── Whitelist + Parameter ──
 $allowed = ['cable', 'drinks', 'food', 'ice', 'camping', 'extra', 'wp_food_gruppen'];
 $table   = trim($_POST['table']  ?? '');
 $nr      = $_POST['nummer'] ?? '';
 $mode    = trim($_POST['mode']   ?? '');
-
-// v7: Preisänderungen nur für admin/cernal
-if ($mode === 'price' && (!is_logged_in() || !wcr_can('edit_prices'))) {
-    http_response_code(403);
-    exit(json_encode(['ok' => false, 'error' => 'Keine Berechtigung: Preise ändern erfordert admin oder cernal']));
-}
 $val     = $_POST['value']  ?? '';
 
 if (!in_array($table, $allowed, true)) {
@@ -32,6 +43,13 @@ if (!in_array($table, $allowed, true)) {
     exit(json_encode(['ok' => false, 'error' => 'Ungültige Tabelle']));
 }
 
+// ── SECURITY 3: Preisänderungen nur für admin/cernal ──
+if ($mode === 'price' && !wcr_can('edit_prices')) {
+    http_response_code(403);
+    exit(json_encode(['ok' => false, 'error' => 'Keine Berechtigung: Preise ändern erfordert admin oder cernal']));
+}
+
+// ── Business Logic (unverändert) ──
 try {
     if ($mode === 'price') {
         $stmt = $pdo->prepare("UPDATE `{$table}` SET preis = ? WHERE nummer = ?");
@@ -53,7 +71,14 @@ try {
         exit(json_encode(['ok' => false, 'error' => 'Unbekannter Modus']));
     }
 
-    echo json_encode(['ok' => true]);
+    // ── Erfolg + neues CSRF-Token zurückgeben ──
+    // wcr_verify_csrf_silent() hat Token bereits rotiert.
+    // Frontend MUSS dieses neue Token in document.body.dataset.csrf speichern,
+    // sonst schlägt der nächste Request fehl (Token-Rotation!).
+    echo json_encode([
+        'ok' => true,
+        'csrf_token' => wcr_csrf_token()
+    ]);
 
 } catch (Exception $e) {
     http_response_code(500);
