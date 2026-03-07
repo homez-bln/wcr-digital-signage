@@ -13,7 +13,7 @@ jobs:
     
     # ✅ TIMEOUT-SCHUTZ: Verhindert hängende Deploys
     # Nach 10 Minuten wird der Workflow abgebrochen
-    timeout-minutes: 10
+    timeout-minutes: 1
     
     steps:
       - name: Checkout code
