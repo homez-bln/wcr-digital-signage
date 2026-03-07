@@ -88,6 +88,8 @@
     /* ── Abgeleitete Farben für Text auf farbigen Hintergründen ── */
     --success-dark:   #1c7c34;   /* Text auf Success-Hintergrund */
     --danger-dark:    #c0392b;   /* Text auf Danger-Hintergrund */
+    --success-badge:  #1a7a30;   /* Grün für Status-Badges (Gruppen-Dropdown) */
+    --danger-badge:   #dc2626;   /* Rot für Status-Badges (Gruppen-Dropdown) */
 }
 
 body {
@@ -370,7 +372,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 
 /* ───────────────────────────────────────────────────────────────────
-   8. GRUPPEN-DROPDOWN  (Liste + Galerie)
+   8. GRUPPEN-DROPDOWN  (✅ MIGRIERT auf Variablen-System)
    ─────────────────────────────────────────────────────────────────── */
 .group-header {
     display: flex;
@@ -435,8 +437,12 @@ input:checked + .slider:before { transform: translateX(20px); }
     text-transform: uppercase;
     transition: background 0.2s, color 0.2s;
 }
-.gruppe-on  .gruppe-badge { background: rgba(52,199,89,0.15); color: #1a7a30; }
-.gruppe-off .gruppe-badge { background: rgba(255,59,48,0.12); color: #dc2626; }
+/* ✅ Migriert: rgba(52,199,89,0.15) → rgba(var(--success-rgb), var(--alpha-15)) */
+/* ✅ Migriert: #1a7a30 → var(--success-badge) */
+.gruppe-on  .gruppe-badge { background: rgba(var(--success-rgb), var(--alpha-15)); color: var(--success-badge); }
+/* ✅ Migriert: rgba(255,59,48,0.12) → rgba(var(--danger-rgb), var(--alpha-12)) */
+/* ✅ Migriert: #dc2626 → var(--danger-badge) */
+.gruppe-off .gruppe-badge { background: rgba(var(--danger-rgb), var(--alpha-12)); color: var(--danger-badge); }
 
 /* Chevron-Kreis */
 .group-chevron {
