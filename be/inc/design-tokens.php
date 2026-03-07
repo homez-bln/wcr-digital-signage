@@ -22,6 +22,9 @@
 if (!defined('DSC_WP_API_BASE')) {
     define('DSC_WP_API_BASE', 'https://wcr-webpage.de/wp-json/wakecamp/v1');
 }
+if (!defined('DSC_WP_SECRET')) {
+    define('DSC_WP_SECRET', 'WCR_DS_2026');
+}
 
 if (!function_exists('dt_curl')) {
     function dt_curl(string $url): array {
@@ -52,8 +55,9 @@ $_dt_defaults = [
     'font'    => 'Segoe UI',
 ];
 
-// Versuche Tokens aus ds-settings.php zu laden
-$_dt_result = dt_curl(DSC_WP_API_BASE . '/ds-settings');
+// Versuche Tokens aus ds-settings.php zu laden (mit wcr_secret Authentifizierung)
+$_dt_url = DSC_WP_API_BASE . '/ds-settings?wcr_secret=' . urlencode(DSC_WP_SECRET);
+$_dt_result = dt_curl($_dt_url);
 
 if ($_dt_result['ok'] && isset($_dt_result['json']['options'])) {
     $wpOpts = $_dt_result['json']['options'];
@@ -79,7 +83,7 @@ if ($_dt_result['ok'] && isset($_dt_result['json']['options'])) {
         $_dt_font = $_dt_defaults['font'];
     }
 } else {
-    // Fallback: API nicht erreichbar → Statische Defaults
+    // Fallback: API nicht erreichbar oder Secret falsch → Statische Defaults
     $_dt_primary = $_dt_defaults['primary'];
     $_dt_success = $_dt_defaults['success'];
     $_dt_font    = $_dt_defaults['font'];
