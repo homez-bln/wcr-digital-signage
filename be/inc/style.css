@@ -21,30 +21,73 @@
    1. VARIABLEN & RESET
    ─────────────────────────────────────────────────────────────────── */
 :root {
+    /* ── Basis-Farben ── */
     --primary:        #0071e3;
     --success:        #34c759;
     --danger:         #ff3b30;
     --warning:        #f0ad4e;
 
+    /* ── Hintergründe ── */
     --bg-body:        #f5f5f7;
     --bg-card:        #ffffff;
     --bg-subtle:      #fafafa;
 
+    /* ── Text ── */
     --text-main:      #1d1d1f;
     --text-muted:     #86868b;
     --text-light:     #aeaeb2;
 
+    /* ── Borders ── */
     --border:         #d2d2d7;
     --border-light:   #e5e5ea;
     --border-xlight:  #f2f2f7;
 
+    /* ── Radius & Shadows ── */
     --radius:         12px;
     --radius-sm:       8px;
     --radius-pill:    20px;
     --shadow:         0 2px 10px rgba(0,0,0,0.06);
     --shadow-hover:   0 8px 25px rgba(0,0,0,0.10);
 
+    /* ── Font ── */
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    /* ═══════════════════════════════════════════════════════════════
+       NEU: Alpha-Werte für Transparenzen (März 2026)
+       Verwendung: background: rgba(var(--success-rgb), var(--alpha-10));
+       Dokumentation: be/docs/CSS-VARIABLES.md
+       ─────────────────────────────────────────────────────────────── */
+    --alpha-05:       0.05;   /* Sehr leicht (Info-Hintergründe) */
+    --alpha-08:       0.08;   /* Leicht (Error-Messages) */
+    --alpha-10:       0.10;   /* Mittel (Success-Messages) */
+    --alpha-12:       0.12;   /* Standard (Status-Banner) */
+    --alpha-15:       0.15;   /* Stark (Gruppen-Badge) */
+
+    /* ═══════════════════════════════════════════════════════════════
+       NEU: Spacing-Scale für konsistente Abstände (März 2026)
+       Verwendung: padding: var(--sp-5); margin-bottom: var(--sp-6);
+       Dokumentation: be/docs/CSS-VARIABLES.md
+       ─────────────────────────────────────────────────────────────── */
+    --sp-1:           4px;    /* Extra klein (Badge-Padding) */
+    --sp-2:           8px;    /* Klein (Button-Padding vertikal) */
+    --sp-3:          12px;    /* Mittel (Card-Padding klein) */
+    --sp-4:          16px;    /* Standard (Section-Padding) */
+    --sp-5:          20px;    /* Groß (Card-Padding standard) */
+    --sp-6:          24px;    /* Extra groß (Layout-Gaps) */
+
+    /* ═══════════════════════════════════════════════════════════════
+       NEU: RGB-Farben für rgba() mit Alpha-Varianten (März 2026)
+       Verwendung: background: rgba(var(--success-rgb), var(--alpha-12));
+       Dokumentation: be/docs/CSS-VARIABLES.md
+       ─────────────────────────────────────────────────────────────── */
+    --success-rgb:    52, 199, 89;      /* Grün für Success-States */
+    --danger-rgb:    255, 59, 48;       /* Rot für Error/Danger-States */
+    --primary-rgb:     0, 113, 227;     /* Blau für Primary-Actions */
+    --warning-rgb:   240, 173, 78;      /* Gelb für Warning-States */
+
+    /* ── Abgeleitete Farben für Text auf farbigen Hintergründen ── */
+    --success-dark:   #1c7c34;   /* Text auf Success-Hintergrund */
+    --danger-dark:    #c0392b;   /* Text auf Danger-Hintergrund */
 }
 
 body {
