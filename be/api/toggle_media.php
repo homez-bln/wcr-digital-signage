@@ -2,7 +2,7 @@
 /**
  * DATEI: be/api/toggle_media.php
  * Reihenfolge: auth (session_start) ZUERST → dann header() → dann Logik
- * v2: + CSRF-Schutz
+ * v3: + CSRF-Schutz + Token-Rotation mit Frontend-Update
  */
 
 // 1. Auth als Allererstes (session_start() ist hier drin)
@@ -55,7 +55,13 @@ try {
     ");
     $stmt->execute([$folder, $filename, $is_active, $is_active]);
 
-    echo json_encode(['ok' => true]);
+    // ── Token nach erfolgreicher Rotation zurückgeben ──
+    // wcr_verify_csrf_silent() hat bereits neues Token generiert,
+    // Frontend muss es für nächsten Request aktualisieren
+    echo json_encode([
+        'ok' => true,
+        'csrf_token' => wcr_csrf_token()
+    ]);
 
 } catch (PDOException $e) {
     echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
