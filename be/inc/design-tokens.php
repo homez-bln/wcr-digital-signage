@@ -55,9 +55,8 @@ $_dt_defaults = [
     'font'    => 'Segoe UI',
 ];
 
-// Versuche Tokens aus ds-settings.php zu laden (mit wcr_secret Authentifizierung)
-$_dt_url = DSC_WP_API_BASE . '/ds-settings?wcr_secret=' . urlencode(DSC_WP_SECRET);
-$_dt_result = dt_curl($_dt_url);
+// GET-Request zu /ds-settings mit wcr_secret absichern (konsistent mit dsc_api_load und ig_get)
+$_dt_result = dt_curl(DSC_WP_API_BASE . '/ds-settings?wcr_secret=' . urlencode(DSC_WP_SECRET));
 
 if ($_dt_result['ok'] && isset($_dt_result['json']['options'])) {
     $wpOpts = $_dt_result['json']['options'];
