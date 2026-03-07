@@ -8,20 +8,25 @@
  * FIX v6: Kein HTTP-Umweg mehr. Liest direkt aus $pdo statt erst
  *         einen cURL-Request an get_tickets.php zu machen.
  *
+ * SECURITY v8: Erfordert edit_products Permission (cernal, admin)
+ *
  * Aufruf:  /be/ctrl/list.php?t=cable
  *                                ^--- ice | cable | camping | extra
  */
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
-require_login();
+
+// ── SECURITY: Login + Permission erforderlich ──
+wcr_require('edit_products');
+
 $_canPrice = wcr_can('edit_prices');
 
-// ── Whitelist ─────────────────────────────────────────────────────
+// ── Whitelist ──────────────────────────────────────────
 const LIST_TABLES = [
     'ice'     => ['label' => 'Eis',     'icon' => '🍦'],
     'cable'   => ['label' => 'Cable',   'icon' => '🏄'],
     'camping' => ['label' => 'Camping', 'icon' => '⛺'],
-    'extra'   => ['label' => 'Extra',   'icon' => '🛍️'],
+    'extra'   => ['label' => 'Extra',   'icon' => '🛒️'],
 ];
 
 $t = trim($_GET['t'] ?? '');
