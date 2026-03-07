@@ -2,32 +2,39 @@
 /**
  * Plugin Name: WCR Digital Signage
  * Description: Digital Signage System für Wake & Camp Ruhlsdorf
- * Version:     2.0.0
+ * Version:     2.0.1
  * Author:      WCR
  */
 
 if (!defined('ABSPATH')) exit;
 
-/* ═══════════════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    PLUGIN SETUP
 ══════════════════════════════════════════════════════════════════════════════ */
 
-define( 'WCR_DS_VERSION', '2.0.0' );
+define( 'WCR_DS_VERSION', '2.0.1' );
 define( 'WCR_DS_URL',     plugin_dir_url( __FILE__ ) );
 define( 'WCR_DS_PATH',    plugin_dir_path( __FILE__ ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    INCLUDES
-   Reihenfolge: DB → Instagram → Enqueue → REST → Shortcode-Funktionen → Shortcode-Spezial
+   Reihenfolge: Core → Shortcodes → Spezial
 ══════════════════════════════════════════════════════════════════════════════ */
 
+// Core-Funktionalität
 require_once WCR_DS_PATH . 'includes/db.php';
 require_once WCR_DS_PATH . 'includes/instagram.php';
 require_once WCR_DS_PATH . 'includes/enqueue.php';
 require_once WCR_DS_PATH . 'includes/rest-api.php';
-require_once WCR_DS_PATH . 'includes/shortcodes.php';         // Theme-/Utility-Shortcodes
-require_once WCR_DS_PATH . 'includes/shortcodes-content.php'; // Content-Shortcode-Funktionen (NEU)
 require_once WCR_DS_PATH . 'includes/screenshot.php';
+
+// Shortcode-Funktionen (thematisch gruppiert)
+require_once WCR_DS_PATH . 'includes/shortcodes.php';         // Theme/Utility-Shortcodes
+require_once WCR_DS_PATH . 'includes/shortcodes-content.php'; // Menü & Preislisten
+require_once WCR_DS_PATH . 'includes/shortcodes-display.php'; // Live-Daten & Wetter
+require_once WCR_DS_PATH . 'includes/shortcodes-widgets.php'; // Animationen & Widgets
+
+// Spezial-Shortcodes (separate Dateien)
 require_once WCR_DS_PATH . 'includes/shortcode-produkte.php'; // 3-Produkt Spotlight
 require_once WCR_DS_PATH . 'includes/shortcode-kino.php';     // 🎬 Kino Shortcode
 
@@ -205,19 +212,24 @@ function wcr_ds_load_leaflet() {
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    SHORTCODE REGISTRATIONS
-   Funktionen sind in includes/shortcodes-content.php definiert
+   Funktionen sind in includes/shortcodes-*.php definiert
 ══════════════════════════════════════════════════════════════════════════════ */
 
-add_shortcode( 'wcr_getraenke',    'wcr_sc_getraenke' );
-add_shortcode( 'wcr_softdrinks',   'wcr_sc_softdrinks' );
-add_shortcode( 'wcr_essen',        'wcr_sc_essen' );
-add_shortcode( 'wcr_kaffee',       'wcr_sc_kaffee' );
-add_shortcode( 'wcr_windmap',      'wcr_sc_windmap' );
-add_shortcode( 'wcr_wetter',       'wcr_sc_wetter' );
-add_shortcode( 'wcr_starter_pack', 'wcr_sc_starter_pack' );
-add_shortcode( 'wcr_eis',          'wcr_sc_eis' );     // Eiskarte
-add_shortcode( 'wcr_cable',        'wcr_sc_cable' );   // Cablepark-Preise
-add_shortcode( 'wcr_camping',      'wcr_sc_camping' ); // Camping-Preise
+// Content-Shortcodes (Menü & Preislisten)
+add_shortcode( 'wcr_getraenke',    'wcr_sc_getraenke' );    // → shortcodes-content.php
+add_shortcode( 'wcr_softdrinks',   'wcr_sc_softdrinks' );   // → shortcodes-content.php
+add_shortcode( 'wcr_essen',        'wcr_sc_essen' );        // → shortcodes-content.php
+add_shortcode( 'wcr_kaffee',       'wcr_sc_kaffee' );       // → shortcodes-content.php
+add_shortcode( 'wcr_eis',          'wcr_sc_eis' );          // → shortcodes-content.php
+add_shortcode( 'wcr_cable',        'wcr_sc_cable' );        // → shortcodes-content.php
+add_shortcode( 'wcr_camping',      'wcr_sc_camping' );      // → shortcodes-content.php
+
+// Display-Shortcodes (Live-Daten & Wetter)
+add_shortcode( 'wcr_windmap',      'wcr_sc_windmap' );      // → shortcodes-display.php
+add_shortcode( 'wcr_wetter',       'wcr_sc_wetter' );       // → shortcodes-display.php
+
+// Widget-Shortcodes (Animationen & Widgets)
+add_shortcode( 'wcr_starter_pack', 'wcr_sc_starter_pack' ); // → shortcodes-widgets.php
 
 // Weitere Shortcodes werden in separaten Dateien registriert:
 // - wcr_produkte → includes/shortcode-produkte.php
