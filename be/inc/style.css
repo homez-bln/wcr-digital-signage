@@ -219,7 +219,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 
 /* ───────────────────────────────────────────────────────────────────
-   5. STATUS-MELDUNGEN
+   5. STATUS-MELDUNGEN  (✅ MIGRIERT auf Variablen-System)
    ─────────────────────────────────────────────────────────────────── */
 .status-msg { font-size: 12px; font-weight: 700; display: inline-block; min-width: 20px; }
 .success    { color: var(--success); }
@@ -232,10 +232,14 @@ input:checked + .slider:before { transform: translateX(20px); }
     border-radius: var(--radius-sm);
     font-size: 13px;
 }
+/* ✅ Migriert: rgba(52,199,89,0.10) → rgba(var(--success-rgb), var(--alpha-10)) */
+/* ✅ Migriert: #1c7c34 → var(--success-dark) */
 .upload-message.success,
-.upload-msg.ok  { background: rgba(52,199,89,0.10); color: #1c7c34; }
+.upload-msg.ok  { background: rgba(var(--success-rgb), var(--alpha-10)); color: var(--success-dark); }
+/* ✅ Migriert: rgba(255,59,48,0.08) → rgba(var(--danger-rgb), var(--alpha-08)) */
+/* ✅ Migriert: #c0392b → var(--danger-dark) */
 .upload-message.error,
-.upload-msg.err { background: rgba(255,59,48,0.08); color: #c0392b; }
+.upload-msg.err { background: rgba(var(--danger-rgb), var(--alpha-08)); color: var(--danger-dark); }
 
 
 /* ───────────────────────────────────────────────────────────────────
