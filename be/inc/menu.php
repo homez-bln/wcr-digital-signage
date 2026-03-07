@@ -1,6 +1,6 @@
 <?php
 /**
- * inc/menu.php v7 — Rollen-bewusstes Menü
+ * inc/menu.php v8 — Rollen-bewusstes Menü + Design-Token-Bridge
  */
 $_currentScript = basename($_SERVER['PHP_SELF']);
 $_currentQuery  = $_SERVER['QUERY_STRING'] ?? '';
@@ -31,6 +31,18 @@ if (!function_exists('_wcr_menu_active')) {
         return ($hP['t'] ?? '') === ($cP['t'] ?? '');
     }
 }
+?>
+<?php
+/**
+ * Design-Token-Bridge: Backend ← ds-settings.php
+ * 
+ * Lädt zentrale CI-Werte (Farben, Font) aus ds-settings.php
+ * und macht sie als CSS-Variablen verfügbar.
+ * 
+ * Phase 1: Nur 3 Brand-Tokens (--brand-primary, --brand-success, --font-family)
+ * Später: Schrittweise Migration auf Brand-Tokens in CSS
+ */
+require_once __DIR__ . '/design-tokens.php';
 ?>
 <link rel="stylesheet" href="/be/inc/style.css">
 <div class="nav-bar">
