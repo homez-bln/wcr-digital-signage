@@ -52,7 +52,7 @@ $MEDIA_FOLDERS = [
         ],
     ],
 
-    // ── Weiteren Ordner hinzufügen – einfach duplizieren ────────────────────
+    // ── Weiteren Ordner hinzufügen – einfach duplizieren ────────────────────────
     // 'events' => [
     //     'label'        => 'Event Bilder',
     //     'icon'         => '📸',
@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_FILES['media_upload']['nam
         $mime     = mime_content_type($fTmps[$i]);
         $fileSize = (int)$fSizes[$i];
 
-        // ── Validierung ────────────────────────────────────────────────────────────
+        // ── Validierung ──────────────────────────────────────────────────────────────────────
         if (!array_key_exists($ext, $allowedExts)) {
             $errors[] = "$origName: ungültiges Format (JPG/PNG/WebP erlaubt)";
             continue;
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_FILES['media_upload']['nam
             continue;
         }
 
-        // ── Sicherer Dateiname (nur alphanumerisch + . _ -) ────────────────────────────────────
+        // ── Sicherer Dateiname (nur alphanumerisch + . _ -) ────────────────────────────────────────────
         $safeName = preg_replace('/[^a-zA-Z0-9._\\-]/', '_', $origName);
         $dest     = $folderPath . $safeName;
 
@@ -345,7 +345,7 @@ $PAGE_TITLE  = 'Media';
                          onclick="toggleMedia(this)">
 
                         <!-- Ladeindikator (während AJAX) -->
-                        <div class="card-spinner">⏳</div>
+                        <div class="card-spinner">⌛</div>
 
                         <!-- Dateiname-Overlay (hover + immer sichtbar wenn off) -->
                         <span class="card-name"><?= htmlspecialchars($filename) ?></span>
@@ -414,6 +414,13 @@ function toggleMedia(card) {
     .then(function(data) {
         card.classList.remove('loading');
         if (data.ok) {
+            // ── CSRF-Token nach Rotation aktualisieren ──
+            // API hat neues Token zurückgegeben, Frontend muss es speichern
+            // damit nächster Request auf derselben Seite funktioniert
+            if (data.csrf_token) {
+                document.body.dataset.csrf = data.csrf_token;
+            }
+
             // UI aktualisieren
             card.dataset.active = String(newVal);
             card.classList.toggle('status-off', newVal === 0);
