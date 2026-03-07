@@ -1,6 +1,6 @@
 <?php
 /**
- * inc/auth.php — Session + Rollen-System v9 + CSRF Protection
+ * inc/auth.php — Session + Rollen-System v10 + Hardened Security
  * Rollen: cernal | admin | user
  *
  * Berechtigungsmatrix:
@@ -19,15 +19,75 @@
  *  Alle schreibenden Aktionen (POST/PUT/DELETE) müssen ein gültiges Token haben.
  *  Token wird automatisch rotiert nach jeder Verwendung.
  *
+ * Session Security v10:
+ *  - Secure Cookie Flag (nur HTTPS in Production)
+ *  - HttpOnly Cookie (kein JavaScript-Zugriff)
+ *  - SameSite=Strict (maximaler CSRF-Schutz)
+ *  - Session Fingerprint (User-Agent + IP-Präfix)
+ *  - Strict Session Mode (keine Session-ID in URL)
+ *  - Session Timeout: 8 Stunden
+ *
  * DB: be_users braucht Spalte `role` VARCHAR(20) DEFAULT 'user'
  *     SQL: ALTER TABLE be_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user';
  */
 
+// ─────────────────────────────────────────────────────────────────────
+// Session Configuration (Hardened Security)
+// ─────────────────────────────────────────────────────────────────────
+
 if (session_status() === PHP_SESSION_NONE) {
-    session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
+    
+    // ── Sichere Cookie-Parameter ──
+    // 'secure' => true aktiviert sich automatisch bei HTTPS,
+    // bleibt false bei lokalem HTTP-Development (localhost ohne SSL)
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') 
+            || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+            || (!empty($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443);
+    
+    session_set_cookie_params([
+        'lifetime' => 0,           // Cookie lebt nur während Browser-Session (kein "Remember Me")
+        'path'     => '/be',       // Cookie nur für Backend gültig (nicht für WordPress)
+        'domain'   => '',          // Automatisch aktuelle Domain
+        'secure'   => $isHttps,    // Nur HTTPS (auto-detect)
+        'httponly' => true,        // Kein JavaScript-Zugriff auf Cookie (XSS-Schutz)
+        'samesite' => 'Strict'     // Strikter CSRF-Schutz (Cookie nur bei Same-Site-Requests)
+    ]);
+    
+    // ── Session-Sicherheit ──
+    ini_set('session.use_strict_mode', '1');      // Nur Server-generierte Session-IDs akzeptieren
+    ini_set('session.use_only_cookies', '1');     // Keine Session-ID in URL (verhindert Session-Fixation)
+    ini_set('session.cookie_httponly', '1');      // Redundante Absicherung (falls session_set_cookie_params fehlschlägt)
+    ini_set('session.use_trans_sid', '0');        // Session-ID niemals in URL übertragen
+    
     session_start();
+    
+    // ── Session-Fingerprint: Bindet Session an User-Agent + IP-Präfix ──
+    // Verhindert Session-Hijacking (gestohlene Session-ID funktioniert nicht von anderem Client).
+    // IP-Präfix statt volle IP: Erlaubt mobile Nutzer mit wechselnden IPs (z.B. WiFi → 4G).
+    $currentFingerprint = hash('sha256', 
+        ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown') . 
+        substr($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 0, strrpos($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', '.'))
+    );
+    
+    if (isset($_SESSION['wcr_fingerprint'])) {
+        // Bei Login-Prozess wird Fingerprint neu gesetzt → hier nicht prüfen
+        // Nur prüfen wenn User bereits eingeloggt ist
+        if (isset($_SESSION['be_user_id']) && $_SESSION['wcr_fingerprint'] !== $currentFingerprint) {
+            // Session-Hijacking-Versuch erkannt → Session beenden
+            session_unset();
+            session_destroy();
+            // Neue Session starten (für Login-Seite)
+            session_start();
+        }
+    }
+    
+    // Fingerprint für diese Session speichern
+    $_SESSION['wcr_fingerprint'] = $currentFingerprint;
 }
 
+// ── Session-Timeout: 8 Stunden Inaktivität ──
+// Nach 8h ohne Aktivität wird User automatisch ausgeloggt.
+// Bei jeder Aktion wird Timeout zurückgesetzt (siehe is_logged_in()).
 define('WCR_SESSION_TIMEOUT', 8 * 3600);
 
 const WCR_ROLES = ['cernal', 'admin', 'user'];
@@ -62,6 +122,7 @@ const WCR_PERMISSIONS = [
  */
 function wcr_csrf_token(): string {
     if (empty($_SESSION['wcr_csrf_token'])) {
+        // 32 Bytes = 256 Bit = sehr sicheres Token
         $_SESSION['wcr_csrf_token'] = bin2hex(random_bytes(32));
     }
     return $_SESSION['wcr_csrf_token'];
@@ -78,6 +139,7 @@ function wcr_verify_csrf(bool $autoFail = true): bool {
     $sentToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
     $validToken = $_SESSION['wcr_csrf_token'] ?? '';
     
+    // hash_equals() verhindert Timing-Angriffe (constant-time comparison)
     if ($sentToken === '' || $validToken === '' || !hash_equals($validToken, $sentToken)) {
         if ($autoFail) {
             http_response_code(403);
@@ -88,7 +150,8 @@ function wcr_verify_csrf(bool $autoFail = true): bool {
         return false;
     }
     
-    // Token-Rotation: Nach erfolgreicher Prüfung neues Token generieren
+    // ── Token-Rotation: Nach erfolgreicher Prüfung neues Token generieren ──
+    // Verhindert Token-Replay-Angriffe (altes Token funktioniert nur 1x)
     unset($_SESSION['wcr_csrf_token']);
     wcr_csrf_token(); // Generiert neues Token für nächsten Request
     
@@ -125,43 +188,108 @@ function wcr_csrf_attr(): string {
 // Session & Authentication Functions
 // ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Loggt User ein und initialisiert sichere Session
+ * 
+ * @param int $user_id User-ID aus Datenbank
+ * @param string $role Benutzerrolle (cernal, admin, user)
+ */
 function login_user(int $user_id, string $role = 'user'): void {
+    // ── Session-Regeneration: Verhindert Session-Fixation-Angriffe ──
+    // Alte Session-ID wird ungültig, neue ID wird generiert.
+    // 'true' Parameter: alte Session-Datei wird gelöscht.
     session_regenerate_id(true);
+    
     $_SESSION['be_user_id']   = $user_id;
     $_SESSION['be_role']      = in_array($role, WCR_ROLES, true) ? $role : 'user';
     $_SESSION['be_last_seen'] = time();
     
-    // Neues CSRF-Token bei Login generieren
+    // ── Session-Fingerprint aktualisieren ──
+    // Bei Login wird neuer Fingerprint gesetzt (User-Agent + IP können sich geändert haben)
+    $newFingerprint = hash('sha256', 
+        ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown') . 
+        substr($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 0, strrpos($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', '.'))
+    );
+    $_SESSION['wcr_fingerprint'] = $newFingerprint;
+    
+    // ── Neues CSRF-Token bei Login generieren ──
+    // Verhindert, dass vorher generierte Tokens nach Login noch funktionieren
     unset($_SESSION['wcr_csrf_token']);
     wcr_csrf_token();
 }
 
+/**
+ * Prüft ob User eingeloggt ist und Session noch gültig
+ * Aktualisiert automatisch Last-Seen-Timestamp
+ * 
+ * @return bool True wenn eingeloggt und Session gültig
+ */
 function is_logged_in(): bool {
+    // ── Basis-Checks ──
     if (empty($_SESSION['be_user_id']) || !is_int($_SESSION['be_user_id'])) return false;
+    
+    // ── Session-Timeout: 8 Stunden Inaktivität ──
+    // Wenn User länger als 8h inaktiv war → automatischer Logout
     if ((time() - ($_SESSION['be_last_seen'] ?? 0)) > WCR_SESSION_TIMEOUT) {
-        session_unset(); session_destroy(); return false;
+        session_unset();
+        session_destroy();
+        return false;
     }
+    
+    // ── Last-Seen aktualisieren (Session aktiv halten) ──
+    // Bei jeder Aktion wird Timeout zurückgesetzt
     $_SESSION['be_last_seen'] = time();
+    
     return true;
 }
 
+/**
+ * Erzwingt Login, redirected zu Login-Seite wenn nicht eingeloggt
+ */
 function require_login(): void {
-    if (!is_logged_in()) { header('Location: /be/login.php'); exit; }
+    if (!is_logged_in()) {
+        // Session beenden bevor redirect (sauberer State)
+        session_unset();
+        session_destroy();
+        header('Location: /be/login.php');
+        exit;
+    }
 }
 
+/**
+ * Gibt aktuelle Benutzerrolle zurück
+ * 
+ * @return string 'cernal', 'admin' oder 'user'
+ */
 function wcr_role(): string {
     return $_SESSION['be_role'] ?? 'user';
 }
 
+/**
+ * Gibt aktuelle User-ID zurück
+ * 
+ * @return int User-ID oder 0 wenn nicht eingeloggt
+ */
 function wcr_user_id(): int {
     return (int)($_SESSION['be_user_id'] ?? 0);
 }
 
+/**
+ * Prüft ob User bestimmte Berechtigung hat
+ * 
+ * @param string $action Permission-Name (siehe WCR_PERMISSIONS)
+ * @return bool True wenn berechtigt
+ */
 function wcr_can(string $action): bool {
     $allowed = WCR_PERMISSIONS[$action] ?? [];
     return in_array(wcr_role(), $allowed, true);
 }
 
+/**
+ * Erzwingt bestimmte Berechtigung, zeigt 403-Seite wenn nicht berechtigt
+ * 
+ * @param string $action Permission-Name (siehe WCR_PERMISSIONS)
+ */
 function wcr_require(string $action): void {
     require_login();
     if (!wcr_can($action)) {
@@ -172,14 +300,30 @@ function wcr_require(string $action): void {
     }
 }
 
+/**
+ * Prüft ob User Admin-Rechte hat (cernal oder admin)
+ * 
+ * @return bool True wenn cernal oder admin
+ */
 function wcr_is_admin(): bool {
     return in_array(wcr_role(), ['cernal', 'admin'], true);
 }
 
+/**
+ * Prüft ob User Cernal-Rolle hat (höchste Berechtigung)
+ * 
+ * @return bool True wenn cernal
+ */
 function wcr_is_cernal(): bool {
     return wcr_role() === 'cernal';
 }
 
+/**
+ * Generiert HTML-Badge für Benutzerrolle
+ * 
+ * @param string $role Optional: spezifische Rolle, sonst aktuelle
+ * @return string HTML-Code für Role-Badge
+ */
 function wcr_role_badge(string $role = ''): string {
     if ($role === '') $role = wcr_role();
     $cfg = [
