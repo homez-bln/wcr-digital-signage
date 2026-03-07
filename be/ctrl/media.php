@@ -1,9 +1,9 @@
 <?php
 
 /**
- * ═══════════════════════════════════════════════════════════════════
+ * ═══════════════════════════════════════════════════════════════
  * DATEI: be/ctrl/media.php
- * ───────────────────────────────────────────────────────────────────
+ * ───────────────────────────────────────────────────────────────
  * Seite    : Media-Verwaltung
  * Zweck    : Bilder in konfigurierten Ordnern ansehen,
  *            per Toggle für random_split_photos() aktivieren /
@@ -21,7 +21,7 @@
  * Neuen Ordner hinzufügen:
  *   Im Array $MEDIA_FOLDERS einen weiteren Eintrag ergänzen –
  *   alle anderen Dateien bleiben unverändert.
- * ═══════════════════════════════════════════════════════════════════
+ * ═══════════════════════════════════════════════════════════════
  */
 
 require_once __DIR__ . '/../inc/auth.php';
@@ -30,14 +30,14 @@ wcr_require('view_media');
 $db = $pdo;
 // ← DEBUG: Diese 2 Zeilen temporär einfügen
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // KONFIGURATION  –  Ordner hier pflegen
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 $MEDIA_FOLDERS = [
 
     'ticket' => [
         'label'        => 'Ticket Bilder',
-        'icon'         => '🎟️',
+        'icon'         => '🎫️',
         // Absoluter Dateisystem-Pfad (trailing slash erforderlich!)
         // __DIR__ = /be/ctrl  →  ../../wp-content/uploads/ticket/
         'abs_path'     => realpath(__DIR__ . '/../../wp-content/uploads/ticket') . '/',
@@ -52,7 +52,7 @@ $MEDIA_FOLDERS = [
         ],
     ],
 
-    // ── Weiteren Ordner hinzufügen – einfach duplizieren ──────────
+    // ── Weiteren Ordner hinzufügen – einfach duplizieren ────────────────────
     // 'events' => [
     //     'label'        => 'Event Bilder',
     //     'icon'         => '📸',
@@ -63,9 +63,9 @@ $MEDIA_FOLDERS = [
 
 ];
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // AKTIVER ORDNER  (aus URL-Parameter, Fallback auf ersten Eintrag)
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 reset($MEDIA_FOLDERS);
 $defaultKey = key($MEDIA_FOLDERS);
 $activeKey  = (isset($_GET['folder']) && array_key_exists($_GET['folder'], $MEDIA_FOLDERS))
@@ -76,9 +76,9 @@ $folder     = $MEDIA_FOLDERS[$activeKey];
 $folderPath = $folder['abs_path'];
 $webBase    = $folder['web_base'];
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // DB – Tabelle auto-erstellen (läuft nur einmalig durch)
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 $db->exec("
     CREATE TABLE IF NOT EXISTS media_files (
         id         INT          AUTO_INCREMENT PRIMARY KEY,
@@ -90,9 +90,9 @@ $db->exec("
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 ");
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // UPLOAD HANDLING  (PRG-Pattern – verhindert Doppel-Submit)
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 $uploadMsg   = '';
 $uploadIsErr = false;
 
@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_FILES['media_upload']['nam
         $mime     = mime_content_type($fTmps[$i]);
         $fileSize = (int)$fSizes[$i];
 
-        // ── Validierung ────────────────────────────────────────────
+        // ── Validierung ────────────────────────────────────────────────────────────
         if (!array_key_exists($ext, $allowedExts)) {
             $errors[] = "$origName: ungültiges Format (JPG/PNG/WebP erlaubt)";
             continue;
@@ -139,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_FILES['media_upload']['nam
             continue;
         }
 
-        // ── Sicherer Dateiname (nur alphanumerisch + . _ -) ────────
-        $safeName = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $origName);
+        // ── Sicherer Dateiname (nur alphanumerisch + . _ -) ────────────────────────────────────
+        $safeName = preg_replace('/[^a-zA-Z0-9._\\-]/', '_', $origName);
         $dest     = $folderPath . $safeName;
 
         if (move_uploaded_file($fTmps[$i], $dest)) {
@@ -172,9 +172,9 @@ if (!empty($_GET['msg'])) {
     $uploadIsErr = (strpos($uploadMsg, '✓') !== 0);
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // BILDER LADEN  –  Dateisystem + DB-Status zusammenführen
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 $images         = [];
 $allowedExtList = ['jpg', 'jpeg', 'png', 'webp'];
 
@@ -225,7 +225,7 @@ $PAGE_TITLE  = 'Media';
     
     </style>
 </head>
-<body>
+<body data-csrf="<?= wcr_csrf_attr() ?>">
 
 <!-- ═══════════════════════════════════════════════════════════════
      NAVIGATION  –  Passe Links an dein bestehendes nav-bar Menü an!
@@ -374,10 +374,10 @@ $PAGE_TITLE  = 'Media';
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
    MEDIA.JS  –  Toggle · Galerie-Filter · Upload-UI · Drag & Drop
    PHP 7.4 kompatibel – kein modernes JS (kein ??, kein Arrow-Fn)
-   ═══════════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════ */
 'use strict';
 
 // ──────────────────────────────────────────────────────────────────
@@ -405,7 +405,9 @@ function toggleMedia(card) {
         body   : JSON.stringify({
             folder    : folder,
             filename  : filename,
-            is_active : newVal
+            is_active : newVal,
+            // ── CSRF-Token anhängen ──
+            csrf_token: document.body.dataset.csrf || ''
         })
     })
     .then(function(r) { return r.json(); })
