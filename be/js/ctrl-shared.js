@@ -1,7 +1,14 @@
-/* ctrl-shared.js — gemeinsames JS für alle Produkt-Seiten
+/* ctrl-shared.js — gemeinsames JS für alle Produkt-Seiten v9 + CSRF
  * Eingebunden per PHP include (wegen TABLE-Variable)
  * FIX v6: War in jeder ctrl-Datei 1:1 kopiert (5× identischer Code)
+ * SECURITY v9: CSRF-Token wird aus data-csrf-Attribut gelesen
  */
+
+// ── CSRF-Token aus <body data-csrf="..."> lesen ──
+function getCsrfToken() {
+    return document.body.getAttribute('data-csrf') || '';
+}
+
 function toggleGroup(h) {
     const key  = h.dataset.group;
     const body = document.querySelector('[data-group-body="' + key + '"]');
@@ -48,10 +55,19 @@ function upd(el, mode) {
     const s = document.getElementById('s-' + nr);
     if (!s) return;
     s.textContent = '…'; s.className = 'status-msg visible';
+    
+    // ── CSRF-Token mitschicken ──
+    const params = new URLSearchParams();
+    params.append('table', TABLE);
+    params.append('nummer', nr);
+    params.append('mode', mode);
+    params.append('value', val);
+    params.append('csrf_token', getCsrfToken());
+    
     fetch('/be/update_ticket.php', {
         method : 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body   : 'table=' + TABLE + '&nummer=' + nr + '&mode=' + mode + '&value=' + encodeURIComponent(val)
+        body   : params.toString()
     })
     .then(r => r.json())
     .then(d => {
