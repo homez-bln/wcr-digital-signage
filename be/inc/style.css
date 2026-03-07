@@ -1029,11 +1029,277 @@ input:checked + .slider:before { transform: translateX(20px); }
     .info-bar      { flex-direction: column; gap: 14px; }
     .info-stat     { flex-direction: row; gap: 16px; min-width: 0; width: 100%; }
     .media-gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
 }
+
+
+
+
+
+
+
+
+
+
+
+/* ── Users.php Styles ────────────────────────────────────────────── */
+
+/* Layout */
+.user-mgmt-layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+/* Panels */
+.user-create-panel,
+.user-list-panel {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+}
+
+.user-create-panel h3,
+.user-list-panel h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 16px;
+}
+
+/* Form */
+.user-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.user-form label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.user-form input,
+.user-form select {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+.user-form input:focus,
+.user-form select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* Role Info Box */
+.role-info {
+    margin-top: 20px;
+    padding: 14px;
+    background: var(--bg-subtle);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+}
+.ri-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+.ri-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+.ri-row:last-child { margin-bottom: 0; }
+
+/* Table */
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.user-table thead {
+    background: var(--bg-subtle);
+}
+.user-table th {
+    padding: 12px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+}
+.user-table tbody tr {
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.15s;
+}
+.user-table tbody tr:hover {
+    background: var(--bg-subtle);
+}
+.user-table tbody tr.inactive-row {
+    opacity: 0.5;
+}
+.user-table td {
+    padding: 12px 14px;
+}
+
+/* Badges */
+.badge-me {
+    font-size: 9px;
+    background: var(--primary);
+    color: white;
+    padding: 2px 6px;
+    border-radius: var(--radius-pill);
+    font-weight: 700;
+    margin-left: 6px;
+}
+
+/* Status Pills */
+.status-pill {
+    border: none;
+    padding: 6px 12px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.status-pill.active {
+    background: rgba(var(--success-rgb), 0.12);
+    color: var(--success-dark);
+}
+.status-pill.inactive {
+    background: rgba(var(--danger-rgb), 0.08);
+    color: var(--danger-dark);
+}
+.status-pill:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Icon Button */
+.btn-icon {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-icon:hover {
+    background: var(--bg-subtle);
+    border-color: var(--text-muted);
+}
+
+/* Secondary Button */
+.btn-secondary {
+    padding: 10px 20px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+.btn-secondary:hover {
+    background: var(--bg-subtle);
+    border-color: var(--text-muted);
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+.modal-content {
+    position: relative;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    padding: 24px;
+    min-width: 400px;
+    z-index: 1;
+}
+.modal-content h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 12px;
+}
+.modal-content p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+}
+.modal-content input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+}
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-light);
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .user-mgmt-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+
+
+
 
 /* ───────────────────────────────────────────────────────────────────
    12. DASHBOARD / INDEX  (✅ MIGRIERT auf Variablen-System)
    ─────────────────────────────────────────────────────────────────── */
+
+
+
+
+
+
+
+
+
+
+
 .dashboard-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
