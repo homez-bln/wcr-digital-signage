@@ -1,7 +1,8 @@
-/* ctrl-shared.js — gemeinsames JS für alle Produkt-Seiten v9 + CSRF
+/* ctrl-shared.js — gemeinsames JS für alle Produkt-Seiten v10 + CSRF-Token-Update
  * Eingebunden per PHP include (wegen TABLE-Variable)
  * FIX v6: War in jeder ctrl-Datei 1:1 kopiert (5× identischer Code)
  * SECURITY v9: CSRF-Token wird aus data-csrf-Attribut gelesen
+ * SECURITY v10: Token wird nach API-Response aktualisiert (Token-Rotation)
  */
 
 // ── CSRF-Token aus <body data-csrf="..."> lesen ──
@@ -64,7 +65,7 @@ function upd(el, mode) {
     params.append('value', val);
     params.append('csrf_token', getCsrfToken());
     
-    fetch('/be/update_ticket.php', {
+    fetch('/be/api/update_ticket.php', {
         method : 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body   : params.toString()
@@ -72,6 +73,13 @@ function upd(el, mode) {
     .then(r => r.json())
     .then(d => {
         if (d.ok) {
+            // ── CSRF-Token nach Rotation aktualisieren ──
+            // API hat neues Token zurückgegeben (wcr_verify_csrf_silent rotiert automatisch).
+            // Frontend MUSS es speichern, sonst schlägt nächster Request fehl.
+            if (d.csrf_token) {
+                document.body.dataset.csrf = d.csrf_token;
+            }
+            
             s.textContent = 'OK'; s.className = 'status-msg visible success';
             setTimeout(() => { s.textContent = ''; s.className = 'status-msg'; }, 1500);
         } else {
