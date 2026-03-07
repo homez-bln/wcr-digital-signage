@@ -18,9 +18,7 @@ require_once WCR_DS_PATH . 'includes/enqueue.php';
 require_once WCR_DS_PATH . 'includes/rest-api.php';
 require_once WCR_DS_PATH . 'includes/shortcodes.php';
 require_once WCR_DS_PATH . 'includes/screenshot.php';
-require_once WCR_DS_PATH . 'includes/admin-obstacles.php';  // Obstacles Admin
 require_once WCR_DS_PATH . 'includes/shortcode-produkte.php'; // 3-Produkt Spotlight
-require_once WCR_DS_PATH . 'includes/admin-kino.php';        // 🎬 Kino Admin
 require_once WCR_DS_PATH . 'includes/shortcode-kino.php';    // 🎬 Kino Shortcode
 
 /* ── Plugin Activation: DB-Tabellen erstellen ── */
@@ -43,19 +41,6 @@ function wcr_ds_create_tables() {
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta( $sql_kino );
 }
-
-/* ── Admin-Menü: Obstacles Karten-Einstellungen ── */
-add_action( 'admin_menu', function() {
-    add_menu_page(
-        'Obstacles Karte',
-        '🏄 Obstacles Karte',
-        'manage_options',
-        'wcr-obstacles-map',
-        'wcr_obstacles_admin_page',
-        'dashicons-location',
-        58
-    );
-});
 
 function wcr_ds_defaults() {
     return array(
