@@ -2,6 +2,7 @@
 /**
  * inc/img-upload-modal.php
  * Bild-Upload-Modal für Produkt-Seiten (admin + cernal)
+ * v2: + CSRF-Token-Update nach Upload/Delete
  *
  * Voraussetzung: $TABLE muss im aufrufenden Scope gesetzt sein.
  * Einbinden vor </body>, nach ctrl-shared.js
@@ -9,7 +10,7 @@
 if (!wcr_is_admin()) return; // Nur für admin + cernal
 ?>
 
-<!-- ── Bild-Upload Modal ────────────────────────────────────────────────────── -->
+<!-- ── Bild-Upload Modal ─────────────────────────────────────────────────────────── -->
 <div id="img-modal" class="img-modal-overlay" style="display:none" onclick="if(event.target===this)closeImgModal()">
   <div class="img-modal-box">
 
@@ -133,7 +134,7 @@ var _imgModal = {
     file:    null,
 };
 
-// ── Modal öffnen ──────────────────────────────────────────────────────────────
+// ── Modal öffnen ────────────────────────────────────────────────────────────────
 function openImgModal(table, nummer, productName, currentUrl) {
     _imgModal.table   = table;
     _imgModal.nummer  = nummer;
@@ -172,7 +173,7 @@ function resetImgModal() {
     hideImgStatus();
 }
 
-// ── Datei auswählen / Drop ────────────────────────────────────────────────────────
+// ── Datei auswählen / Drop ────────────────────────────────────────────────────────────────
 function handleImgSelect(input) {
     if (input.files && input.files[0]) showImgPreview(input.files[0]);
 }
@@ -219,6 +220,13 @@ function doImgUpload() {
             btn.disabled    = false;
             btn.textContent = '⬆ Hochladen';
             if (data.ok) {
+                // ── CSRF-Token nach Rotation aktualisieren ──
+                // API hat neues Token zurückgegeben, Frontend muss es speichern
+                // damit nächster Upload auf derselben Seite funktioniert
+                if (data.csrf_token) {
+                    document.body.dataset.csrf = data.csrf_token;
+                }
+
                 showImgStatus('✓ Bild gespeichert!', 'ok');
                 // Karte in der Produktliste aktualisieren
                 updateCardImage(_imgModal.nummer, data.url);
@@ -252,6 +260,13 @@ function deleteImg() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok) {
+                // ── CSRF-Token nach Rotation aktualisieren ──
+                // API hat neues Token zurückgegeben, Frontend muss es speichern
+                // damit nächste Aktion auf derselben Seite funktioniert
+                if (data.csrf_token) {
+                    document.body.dataset.csrf = data.csrf_token;
+                }
+
                 showImgStatus('✓ Bild entfernt', 'ok');
                 updateCardImage(_imgModal.nummer, '');
                 document.getElementById('img-current-wrap').style.display = 'none';
@@ -262,7 +277,7 @@ function deleteImg() {
         });
 }
 
-// ── Produktkarte in der Liste aktualisieren ────────────────────────────────────────────────
+// ── Produktkarte in der Liste aktualisieren ──────────────────────────────────────────────────────────
 function updateCardImage(nummer, url) {
     var card = document.getElementById('card-' + nummer);
     if (!card) return;
