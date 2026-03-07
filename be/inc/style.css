@@ -65,6 +65,7 @@
     --alpha-12:       0.12;   /* Standard (Status-Banner) */
     --alpha-13:       0.13;   /* Mittel-Stark (Sidebar Badge active) */
     --alpha-15:       0.15;   /* Stark (Gruppen-Badge) */
+    --alpha-30:       0.3;    /* Sehr stark (Status-Banner Border) */
 
     /* ═══════════════════════════════════════════════════════════════
        NEU: Spacing-Scale für konsistente Abstände (März 2026)
@@ -1031,7 +1032,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 /* ───────────────────────────────────────────────────────────────────
-   12. DASHBOARD / INDEX
+   12. DASHBOARD / INDEX  (✅ MIGRIERT auf Variablen-System)
    ─────────────────────────────────────────────────────────────────── */
 .dashboard-grid {
     display: grid;
@@ -1059,7 +1060,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .dash-card .icon { font-size: 32px; }
 .dash-card .lbl  { font-size: 13px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
 
-/* ── Status-Banner (Cache-Bust-Feedback) ── */
+/* ── Status-Banner (Cache-Bust-Feedback) - ERSTES VORKOMMEN ── */
 .status-banner {
     padding: 10px 16px;
     border-radius: var(--radius-sm);
@@ -1068,11 +1069,15 @@ input:checked + .slider:before { transform: translateX(20px); }
     margin-bottom: 16px;
     display: none;
 }
-.status-banner.ok  { background: rgba(52,199,89,.12);  color: #1c7c34; display: block; }
-.status-banner.err { background: rgba(255,59,48,.10);  color: #c0392b; display: block; }
+/* ✅ Migriert: rgba(52,199,89,.12) → rgba(var(--success-rgb), var(--alpha-12)) */
+/* ✅ Migriert: #1c7c34 → var(--success-dark) */
+.status-banner.ok  { background: rgba(var(--success-rgb), var(--alpha-12));  color: var(--success-dark); display: block; }
+/* ✅ Migriert: rgba(255,59,48,.10) → rgba(var(--danger-rgb), var(--alpha-10)) */
+/* ✅ Migriert: #c0392b → var(--danger-dark) */
+.status-banner.err { background: rgba(var(--danger-rgb), var(--alpha-10));  color: var(--danger-dark); display: block; }
 
 /* ───────────────────────────────────────────────────────────────────
-   13. ROLLEN-SYSTEM v7
+   13. ROLLEN-SYSTEM v7  (✅ MIGRIERT auf Variablen-System)
    ─────────────────────────────────────────────────────────────────── */
 .role-badge {
     display: inline-block;
@@ -1152,7 +1157,14 @@ input:checked + .slider:before { transform: translateX(20px); }
 .dash-card-highlight { border: 2px solid var(--primary); }
 .dashboard-grid { margin-bottom: 40px; }
 
-/* ── Status Banner ── */
+/* ── Status Banner - ZWEITES VORKOMMEN (mit Border) ── */
+/* ⚠️ HINWEIS: Doppelte Regel - wird in separatem Refactoring-Schritt bereinigt */
 .status-banner { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; margin-bottom: 20px; }
-.status-banner.ok  { background: rgba(52,199,89,.12);  color: #1c7c34; border: 1px solid rgba(52,199,89,.3); }
-.status-banner.error { background: rgba(255,59,48,.10); color: #c0392b; border: 1px solid rgba(255,59,48,.3); }
+/* ✅ Migriert: rgba(52,199,89,.12) → rgba(var(--success-rgb), var(--alpha-12)) */
+/* ✅ Migriert: #1c7c34 → var(--success-dark) */
+/* ✅ Migriert: rgba(52,199,89,.3) → rgba(var(--success-rgb), var(--alpha-30)) */
+.status-banner.ok  { background: rgba(var(--success-rgb), var(--alpha-12));  color: var(--success-dark); border: 1px solid rgba(var(--success-rgb), var(--alpha-30)); }
+/* ✅ Migriert: rgba(255,59,48,.10) → rgba(var(--danger-rgb), var(--alpha-10)) */
+/* ✅ Migriert: #c0392b → var(--danger-dark) */
+/* ✅ Migriert: rgba(255,59,48,.3) → rgba(var(--danger-rgb), var(--alpha-30)) */
+.status-banner.error { background: rgba(var(--danger-rgb), var(--alpha-10)); color: var(--danger-dark); border: 1px solid rgba(var(--danger-rgb), var(--alpha-30)); }
