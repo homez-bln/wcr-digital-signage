@@ -1,7 +1,7 @@
 <?php
 /**
  * api/update_ticket.php
- * v10: Session-basierte CSRF-Auth statt veralteter Hardcoded-Token
+ * v11: + Sicheres Error-Logging (kein Exception-Leaking)
  *
  * Interner Backend-Endpunkt für Produkt-Updates:
  *  - Toggle stock (aktiv/inaktiv)
@@ -15,6 +15,7 @@
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../inc/auth.php';
+require_once __DIR__ . '/../inc/error_handler.php';
 require_once __DIR__ . '/../inc/db.php';
 
 // ── SECURITY 1: Login erforderlich ──
@@ -81,6 +82,14 @@ try {
     ]);
 
 } catch (Exception $e) {
+    // ── Internes Logging: Volle Fehlerdetails ──
+    wcr_log_error('update_ticket', $e, [
+        'table' => $table,
+        'nummer' => $nr,
+        'mode' => $mode
+    ]);
+    
+    // ── User-Ausgabe: Generisch (bereits sicher) ──
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'DB-Fehler']);
 }
