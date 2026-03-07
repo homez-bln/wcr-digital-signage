@@ -11,29 +11,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     
-    # ✅ VERBESSERUNG 1: Timeout-Schutz gegen hängende Deploys
-    # PROBLEM: Externe Action konnte nicht geladen werden (GitHub Marketplace Timeout)
-    # LÖSUNG: Nach 10 Minuten abbrechen → verhindert stundenlange hängende Workflows
+    # ✅ TIMEOUT-SCHUTZ: Verhindert hängende Deploys
+    # Nach 10 Minuten wird der Workflow abgebrochen
     timeout-minutes: 10
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ VERBESSERUNG 2: Retry-Logik für robusteren Deploy
-      # PROBLEM: Temporäre Netzwerkprobleme führten zu fehlgeschlagenen Deploys
-      # LÖSUNG: 3 Versuche mit 30s Pause → Standard-Pattern für Netzwerk-Operationen
-      - name: Deploy via SFTP (mit Retry)
-        uses: nick-fields/retry-action@v2
-        with:
-          timeout_minutes: 8
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            # Externe SFTP-Action wird innerhalb der Retry-Logik ausgeführt
-            # Bei Timeout oder Fehler: Automatischer Neuversuch
-            echo "Starting SFTP deployment attempt..."
-          
       - name: Deploy via SFTP
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
@@ -48,21 +33,16 @@ jobs:
           # SFTP-only für sicheren Transfer
           sftp_only: true
           
-          # ✅ VERBESSERUNG 3: Delete-Modus aktiviert für Deploy-Hygiene
-          # PROBLEM: Nach Refactorings bleiben alte Dateien auf Server liegen
-          # BEISPIEL: shortcodes-content.php wurde aufgeteilt, alte Datei blieb
-          # LÖSUNG: delete_remote_files: true → Server = exakte Kopie von Git
-          # WICHTIG: Nur Plugin-Verzeichnis betroffen, nicht das gesamte WordPress
+          # ✅ DELETE-MODE: Alte Dateien nach Refactorings entfernen
+          # Server = exakte Kopie von Git (keine Altlasten)
           delete_remote_files: true
           
-          # ✅ VERBESSERUNG 4: Exclude node_modules (falls vorhanden)
-          # GRUND: Performance-Optimierung, node_modules sind nicht Teil des Plugins
+          # ✅ EXCLUDE: Performance-Optimierung
           args: '--exclude=node_modules/ --exclude=.git/ --exclude=.github/'
           
           # Standard SFTP-Port
           port: 22
 
-      # ✅ VERBESSERUNG 5: Deploy-Bestätigung im Log
       - name: Deployment erfolgreich
         run: |
           echo "✅ Deploy abgeschlossen"
