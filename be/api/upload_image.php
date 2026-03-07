@@ -1,12 +1,13 @@
 <?php
 /**
  * api/upload_image.php — Bild-Upload für Produkte
- * v7: Nur für admin und cernal
+ * v9: Nur für admin und cernal + CSRF-Schutz
  *
  * POST-Parameter:
  *   file    → Bilddatei (multipart)
  *   table   → Tabellenname (whitelist)
  *   nummer  → Produkt-ID
+ *   csrf_token → CSRF-Token (erforderlich)
  *
  * Ablauf:
  *   1. Bild auf max. 800×800 skalieren (quadratisch, Cover-Modus)
@@ -20,10 +21,16 @@ require_once __DIR__ . '/../inc/db.php';
 
 header('Content-Type: application/json');
 
-// Auth
+// ── SECURITY: Login + Admin erforderlich ──
 if (!is_logged_in() || !wcr_is_admin()) {
     http_response_code(403);
     exit(json_encode(['ok' => false, 'error' => 'Keine Berechtigung']));
+}
+
+// ── CSRF-Schutz ──
+if (!wcr_verify_csrf_silent()) {
+    http_response_code(403);
+    exit(json_encode(['ok' => false, 'error' => 'CSRF-Token ungültig']));
 }
 
 // Whitelist
@@ -36,7 +43,7 @@ if (!in_array($table, $ALLOWED_TABLES, true) || $nummer <= 0) {
     exit(json_encode(['ok' => false, 'error' => 'Ungültige Parameter']));
 }
 
-// ── Bild löschen ─────────────────────────────────────────────────────
+// ── Bild löschen ──────────────────────────────────────────────────────────
 if (!empty($_POST['delete'])) {
     try {
         $old = $pdo->prepare("SELECT bild_url FROM `{$table}` WHERE nummer = ?");
