@@ -52,9 +52,9 @@ const WCR_PERMISSIONS = [
     'toggle'        => ['cernal', 'admin', 'user'], // An/Aus schalten (alle)
 ];
 
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 // CSRF Protection Functions
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 
 /**
  * Generiert oder liefert aktuelles CSRF-Token
@@ -96,6 +96,16 @@ function wcr_verify_csrf(bool $autoFail = true): bool {
 }
 
 /**
+ * Prüft CSRF-Token ohne automatischen Exit
+ * Ideal für JSON-APIs mit custom Error-Handling
+ * 
+ * @return bool True wenn Token gültig
+ */
+function wcr_verify_csrf_silent(): bool {
+    return wcr_verify_csrf(false);
+}
+
+/**
  * Gibt verstecktes Input-Feld mit CSRF-Token zurück
  * Für Formulare: <?php echo wcr_csrf_field(); ?>
  */
@@ -111,9 +121,9 @@ function wcr_csrf_attr(): string {
     return htmlspecialchars(wcr_csrf_token(), ENT_QUOTES, 'UTF-8');
 }
 
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 // Session & Authentication Functions
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 
 function login_user(int $user_id, string $role = 'user'): void {
     session_regenerate_id(true);
