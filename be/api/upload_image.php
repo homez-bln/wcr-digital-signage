@@ -1,7 +1,7 @@
 <?php
 /**
  * api/upload_image.php — Bild-Upload für Produkte
- * v10: + CSRF-Token-Rückgabe nach Rotation
+ * v11: + Sichere Fehlerbehandlung (kein Exception-Leaking)
  *
  * POST-Parameter:
  *   file    → Bilddatei (multipart)
@@ -17,6 +17,7 @@
  */
 
 require_once __DIR__ . '/../inc/auth.php';
+require_once __DIR__ . '/../inc/error_handler.php';
 require_once __DIR__ . '/../inc/db.php';
 
 header('Content-Type: application/json');
@@ -43,7 +44,7 @@ if (!in_array($table, $ALLOWED_TABLES, true) || $nummer <= 0) {
     exit(json_encode(['ok' => false, 'error' => 'Ungültige Parameter']));
 }
 
-// ── Bild löschen ──────────────────────────────────────────────────────────
+// ── Bild löschen ─────────────────────────────────────────────────────────────
 if (!empty($_POST['delete'])) {
     try {
         $old = $pdo->prepare("SELECT bild_url FROM `{$table}` WHERE nummer = ?");
@@ -58,14 +59,20 @@ if (!empty($_POST['delete'])) {
         $pdo->prepare("UPDATE `{$table}` SET bild_url = NULL WHERE nummer = ?")->execute([$nummer]);
         
         // ── Token nach erfolgreicher Rotation zurückgeben ──
-        // wcr_verify_csrf_silent() hat bereits neues Token generiert,
-        // Frontend muss es für nächsten Request aktualisieren
         exit(json_encode([
             'ok' => true,
             'csrf_token' => wcr_csrf_token()
         ]));
+        
     } catch (Exception $e) {
-        exit(json_encode(['ok' => false, 'error' => $e->getMessage()]));
+        // ── Internes Logging: Volle Fehlerdetails ──
+        wcr_log_error('upload_image:delete', $e, [
+            'table' => $table,
+            'nummer' => $nummer
+        ]);
+        
+        // ── User-Ausgabe: Generisch ──
+        exit(json_encode(['ok' => false, 'error' => 'Löschen fehlgeschlagen']));
     }
 }
 
@@ -169,19 +176,30 @@ try {
             unlink($oldPath);
         }
     }
-} catch (Exception $e) { /* ignorieren */ }
+} catch (Exception $e) {
+    // ── Alte Datei löschen ist optional → Fehler ignorieren ──
+    // Nur intern loggen
+    wcr_log_error('upload_image:cleanup_old', $e, ['table' => $table, 'nummer' => $nummer]);
+}
 
 // bild_url in DB aktualisieren
 try {
     $stmt = $pdo->prepare("UPDATE `{$table}` SET bild_url = ? WHERE nummer = ?");
     $stmt->execute([$url, $nummer]);
+    
 } catch (Exception $e) {
-    exit(json_encode(['ok' => false, 'error' => 'DB-Fehler: ' . $e->getMessage()]));
+    // ── Internes Logging: Volle Fehlerdetails ──
+    wcr_log_error('upload_image:db_update', $e, [
+        'table' => $table,
+        'nummer' => $nummer,
+        'url' => $url
+    ]);
+    
+    // ── User-Ausgabe: Generisch (kein "DB-Fehler: ..." mit Exception-Message) ──
+    exit(json_encode(['ok' => false, 'error' => 'Datenbank-Aktualisierung fehlgeschlagen']));
 }
 
 // ── Erfolg + Token nach erfolgreicher Rotation zurückgeben ──
-// wcr_verify_csrf_silent() hat bereits neues Token generiert,
-// Frontend muss es für nächsten Upload aktualisieren
 exit(json_encode([
     'ok' => true,
     'url' => $url,
