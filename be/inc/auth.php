@@ -1,10 +1,13 @@
 <?php
 /**
- * inc/auth.php — Session + Rollen-System v7
+ * inc/auth.php — Session + Rollen-System v8
  * Rollen: cernal | admin | user
  *
  * Berechtigungsmatrix:
  *  edit_prices   → cernal, admin      (Preise ändern)
+ *  edit_products → cernal, admin      (Produkte verwalten: Drinks, Food, Cable, etc.)
+ *  edit_content  → cernal, admin      (Content verwalten: Kino, Obstacles, etc.)
+ *  edit_tickets  → cernal, admin      (Tickets bearbeiten)
  *  view_times    → cernal, admin      (Öffnungszeiten-Seite)
  *  view_media    → cernal, admin      (Media-Seite)
  *  view_ds       → cernal, admin      (DS-Seiten-Vorschau)
@@ -26,13 +29,23 @@ define('WCR_SESSION_TIMEOUT', 8 * 3600);
 const WCR_ROLES = ['cernal', 'admin', 'user'];
 
 const WCR_PERMISSIONS = [
-    'edit_prices'  => ['cernal', 'admin'],
-    'view_times'   => ['cernal', 'admin'],
-    'view_media'   => ['cernal', 'admin'],
-    'view_ds'      => ['cernal', 'admin'],
-    'manage_users' => ['cernal', 'admin'],
-    'debug'        => ['cernal'],
-    'toggle'       => ['cernal', 'admin', 'user'],
+    // Preis-Management
+    'edit_prices'   => ['cernal', 'admin'],
+    
+    // Content-Management
+    'edit_products' => ['cernal', 'admin'],  // Drinks, Food, Cable, Camping, Ice, Extra
+    'edit_content'  => ['cernal', 'admin'],  // Kino, Obstacles, etc.
+    'edit_tickets'  => ['cernal', 'admin'],  // Ticket-Verwaltung
+    
+    // View-Permissions
+    'view_times'    => ['cernal', 'admin'],  // Öffnungszeiten-Seite
+    'view_media'    => ['cernal', 'admin'],  // Media-Verwaltung
+    'view_ds'       => ['cernal', 'admin'],  // Digital Signage Seiten
+    
+    // System-Permissions
+    'manage_users'  => ['cernal', 'admin'],  // User-Management
+    'debug'         => ['cernal'],           // Debug-Panel (nur Cernal)
+    'toggle'        => ['cernal', 'admin', 'user'], // An/Aus schalten (alle)
 ];
 
 function login_user(int $user_id, string $role = 'user'): void {
