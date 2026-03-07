@@ -2,6 +2,8 @@
 /**
  * update_ticket.php — Proxy zu api/update_ticket.php
  *
+ * SECURITY v8: Erfordert Login + edit_tickets Permission (cernal, admin)
+ *
  * FIX v6: Leitet direkt an die API weiter. Zusätzlich:
  *   Sendet nach erfolgreichem Update einen WP-REST-Request um den
  *   WordPress-Transient-Cache zu leeren, damit Preisänderungen
@@ -9,12 +11,11 @@
  */
 declare(strict_types=1);
 require_once __DIR__ . '/inc/auth.php';
-header('Content-Type: application/json; charset=utf-8');
 
-if (!is_logged_in()) {
-    http_response_code(403);
-    exit(json_encode(['ok' => false, 'error' => 'not_logged_in']));
-}
+// ── SECURITY: Login + Permission erforderlich ──
+wcr_require('edit_tickets');
+
+header('Content-Type: application/json; charset=utf-8');
 
 $API_URL = 'https://www.wcr-webpage.de/be/api/update_ticket.php';
 $TOKEN   = '5f581e2655f5b36d05a8ad3db821e5da4d0a0ea4dfe66314dcab1dd86bb64ed3';
