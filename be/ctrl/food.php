@@ -3,7 +3,7 @@
  * ctrl/food.php
  * FIX v6: Direkter DB-Zugriff, kein cURL-Roundtrip mehr.
  *         Gruppen-Toggle (OFFEN/GESCHLOSSEN) bleibt erhalten.
- * SECURITY v8: Erfordert edit_products Permission (cernal, admin)
+ * SECURITY v9: Erfordert edit_products Permission + CSRF-Token
  */
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
@@ -53,7 +53,7 @@ ksort($grouped);
     .group-body.gruppe-off .item-card { opacity: .35; filter: grayscale(60%); pointer-events: none; }
   </style>
 </head>
-<body class="bo">
+<body class="bo" data-csrf="<?= wcr_csrf_attr() ?>">
 <?php include __DIR__ . '/../inc/menu.php'; ?>
 
 <div class="header-controls">
@@ -180,10 +180,18 @@ function updGruppe(checkbox) {
     const body = document.querySelector('[data-group-body="' + groupKey + '"]');
     if (body) body.classList.toggle('gruppe-off', !checkbox.checked);
 
+    // ── CSRF-Token mitschicken ──
+    const params = new URLSearchParams();
+    params.append('table', 'wp_food_gruppen');
+    params.append('nummer', typ);
+    params.append('mode', 'gruppe');
+    params.append('value', aktiv);
+    params.append('csrf_token', getCsrfToken());
+
     fetch('/be/update_ticket.php', {
         method : 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body   : 'table=wp_food_gruppen&nummer=' + encodeURIComponent(typ) + '&mode=gruppe&value=' + aktiv
+        body   : params.toString()
     })
     .then(r => r.json())
     .then(d => { if (!d.ok) console.error('Gruppe-Fehler', d); })
