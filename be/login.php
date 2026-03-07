@@ -1,6 +1,6 @@
 <?php
 /**
- * login.php v7 — Lädt auch die Rolle aus be_users.role
+ * login.php v8 — Lädt auch die Rolle aus be_users.role + CSRF Protection
  */
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/db.php';
@@ -9,23 +9,28 @@ if (is_logged_in()) { header('Location: ./index.php'); exit; }
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim((string)($_POST['username'] ?? ''));
-    $password = (string)($_POST['password']      ?? '');
-
-    if ($username !== '' && $password !== '') {
-        // v7: Lädt auch die Rolle
-        $stmt = $pdo->prepare('SELECT id, password_hash, COALESCE(role, "user") as role FROM be_users WHERE username = :u AND active = 1 LIMIT 1');
-        $stmt->execute(['u' => $username]);
-        $user = $stmt->fetch();
-
-        if ($user && password_verify($password, (string)$user['password_hash'])) {
-            login_user((int)$user['id'], (string)$user['role']);
-            header('Location: ./index.php');
-            exit;
-        }
-        $error = 'Benutzername oder Passwort falsch.';
+    // ── CSRF-Schutz ──
+    if (!wcr_verify_csrf(false)) {
+        $error = 'Sicherheitsprüfung fehlgeschlagen. Bitte erneut versuchen.';
     } else {
-        $error = 'Bitte beide Felder ausfüllen.';
+        $username = trim((string)($_POST['username'] ?? ''));
+        $password = (string)($_POST['password']      ?? '');
+
+        if ($username !== '' && $password !== '') {
+            // v7: Lädt auch die Rolle
+            $stmt = $pdo->prepare('SELECT id, password_hash, COALESCE(role, "user") as role FROM be_users WHERE username = :u AND active = 1 LIMIT 1');
+            $stmt->execute(['u' => $username]);
+            $user = $stmt->fetch();
+
+            if ($user && password_verify($password, (string)$user['password_hash'])) {
+                login_user((int)$user['id'], (string)$user['role']);
+                header('Location: ./index.php');
+                exit;
+            }
+            $error = 'Benutzername oder Passwort falsch.';
+        } else {
+            $error = 'Bitte beide Felder ausfüllen.';
+        }
     }
 }
 ?>
@@ -61,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="box">
       <?php if ($error): ?><div class="err"><?= htmlspecialchars($error) ?></div><?php endif; ?>
       <form method="post" autocomplete="off">
+        <?= wcr_csrf_field() ?>
         <label for="u">Benutzername</label>
         <input id="u" name="username" required autofocus autocomplete="username">
         <label for="p">Passwort</label>
