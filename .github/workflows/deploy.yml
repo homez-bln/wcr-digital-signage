@@ -1,6 +1,5 @@
 name: Deploy to IONOS
 
-# Trigger: Automatisch bei Push auf main oder manuell via workflow_dispatch
 on:
   push:
     branches:
@@ -10,11 +9,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
-    # ✅ TIMEOUT-SCHUTZ: Verhindert hängende Deploys
-    # Nach 10 Minuten wird der Workflow abgebrochen
     timeout-minutes: 1
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,27 +21,16 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          
-          # Plugin-Verzeichnis (wcr-digital-signage/) wird deployed
           local_path: './wcr-digital-signage/*'
           remote_path: '/WebSpace/wordpress/wp-content/plugins/wcr-digital-signage/'
-          
-          # SFTP-only für sicheren Transfer
           sftp_only: true
-          
-          # ✅ DELETE-MODE: Alte Dateien nach Refactorings entfernen
-          # Server = exakte Kopie von Git (keine Altlasten)
           delete_remote_files: true
-          
-          # ✅ EXCLUDE: Performance-Optimierung
           args: '--exclude=node_modules/ --exclude=.git/ --exclude=.github/'
-          
-          # Standard SFTP-Port
           port: 22
 
       - name: Deployment erfolgreich
         run: |
           echo "✅ Deploy abgeschlossen"
           echo "📦 Plugin: wcr-digital-signage/"
-          echo "🗑️  Alte Dateien wurden entfernt (delete_remote_files: true)"
-          echo "🔄 Server ist jetzt synchron mit Git-Repository"
+          echo "🗑️ Alte Dateien wurden entfernt"
+          echo "🔄 Server ist synchron mit Git"
