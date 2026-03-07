@@ -2,7 +2,7 @@
 /**
  * update_ticket.php — Proxy zu api/update_ticket.php
  *
- * SECURITY v8: Erfordert Login + edit_tickets Permission (cernal, admin)
+ * SECURITY v9: Erfordert Login + edit_tickets Permission + CSRF Token
  *
  * FIX v6: Leitet direkt an die API weiter. Zusätzlich:
  *   Sendet nach erfolgreichem Update einen WP-REST-Request um den
@@ -12,8 +12,9 @@
 declare(strict_types=1);
 require_once __DIR__ . '/inc/auth.php';
 
-// ── SECURITY: Login + Permission erforderlich ──
+// ── SECURITY: Login + Permission + CSRF erforderlich ──
 wcr_require('edit_tickets');
+wcr_verify_csrf(); // Exit mit 403 bei ungültigem Token
 
 header('Content-Type: application/json; charset=utf-8');
 
