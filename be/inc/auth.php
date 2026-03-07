@@ -1,6 +1,6 @@
 <?php
 /**
- * inc/auth.php — Session + Rollen-System v8
+ * inc/auth.php — Session + Rollen-System v9 + CSRF Protection
  * Rollen: cernal | admin | user
  *
  * Berechtigungsmatrix:
@@ -14,6 +14,10 @@
  *  manage_users  → cernal, admin      (Benutzer anlegen/verwalten)
  *  debug         → cernal only        (Debug-Panel)
  *  toggle        → cernal, admin, user (An/Aus schalten)
+ *
+ * CSRF Protection:
+ *  Alle schreibenden Aktionen (POST/PUT/DELETE) müssen ein gültiges Token haben.
+ *  Token wird automatisch rotiert nach jeder Verwendung.
  *
  * DB: be_users braucht Spalte `role` VARCHAR(20) DEFAULT 'user'
  *     SQL: ALTER TABLE be_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user';
@@ -48,11 +52,78 @@ const WCR_PERMISSIONS = [
     'toggle'        => ['cernal', 'admin', 'user'], // An/Aus schalten (alle)
 ];
 
+// ─────────────────────────────────────────────────────────────────
+// CSRF Protection Functions
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Generiert oder liefert aktuelles CSRF-Token
+ * Token wird automatisch nach erfolgreicher Validierung rotiert
+ */
+function wcr_csrf_token(): string {
+    if (empty($_SESSION['wcr_csrf_token'])) {
+        $_SESSION['wcr_csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['wcr_csrf_token'];
+}
+
+/**
+ * Prüft CSRF-Token aus Request
+ * Rotiert Token bei Erfolg automatisch für nächsten Request
+ * 
+ * @param bool $autoFail Bei true: 403 + exit bei Fehler, bei false: return false
+ * @return bool True wenn Token gültig
+ */
+function wcr_verify_csrf(bool $autoFail = true): bool {
+    $sentToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $validToken = $_SESSION['wcr_csrf_token'] ?? '';
+    
+    if ($sentToken === '' || $validToken === '' || !hash_equals($validToken, $sentToken)) {
+        if ($autoFail) {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+            exit;
+        }
+        return false;
+    }
+    
+    // Token-Rotation: Nach erfolgreicher Prüfung neues Token generieren
+    unset($_SESSION['wcr_csrf_token']);
+    wcr_csrf_token(); // Generiert neues Token für nächsten Request
+    
+    return true;
+}
+
+/**
+ * Gibt verstecktes Input-Feld mit CSRF-Token zurück
+ * Für Formulare: <?php echo wcr_csrf_field(); ?>
+ */
+function wcr_csrf_field(): string {
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(wcr_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+}
+
+/**
+ * Gibt CSRF-Token als JSON-Attribut zurück
+ * Für JavaScript: data-csrf="<?= wcr_csrf_attr() ?>"
+ */
+function wcr_csrf_attr(): string {
+    return htmlspecialchars(wcr_csrf_token(), ENT_QUOTES, 'UTF-8');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Session & Authentication Functions
+// ─────────────────────────────────────────────────────────────────
+
 function login_user(int $user_id, string $role = 'user'): void {
     session_regenerate_id(true);
     $_SESSION['be_user_id']   = $user_id;
     $_SESSION['be_role']      = in_array($role, WCR_ROLES, true) ? $role : 'user';
     $_SESSION['be_last_seen'] = time();
+    
+    // Neues CSRF-Token bei Login generieren
+    unset($_SESSION['wcr_csrf_token']);
+    wcr_csrf_token();
 }
 
 function is_logged_in(): bool {
