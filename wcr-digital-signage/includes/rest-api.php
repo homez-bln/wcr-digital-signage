@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/* ════════════════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════════
    WCR Digital Signage – REST API
    
    SICHERHEITSKONZEPT:
@@ -13,22 +13,23 @@ if (!defined('ABSPATH')) exit;
    
    🔒 Geschützt (permission_callback mit Auth-Check):
       - /ds-settings GET + POST → NUR WordPress-Admins
+      - /options GET + POST → NUR mit Secret (Backend-Zugriff)
       - /obstacles/map-config POST → Secret ODER Admin ODER Nonce
    
    WICHTIG:
    - Sensible Konfigurationsdaten (Instagram-Token) sind NICHT öffentlich
    - Schreibende Routen haben Auth-Checks
    - Backend (be/) greift direkt auf WordPress-Options zu, nicht über REST
-════════════════════════════════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════════════════════════════ */
 
 define('WCR_DS_API_SECRET', 'WCR_DS_2026');
 
 add_action('rest_api_init', function() {
 
-    /* ════════════════════════════════════════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════════════
        ÖFFENTLICHE READ-ONLY CONTENT-ROUTEN
        Zeigen nur aktive/vorrätige Items für Digital Signage Frontend
-    ════════════════════════════════════════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════════════ */
 
     // ── Alle Drinks ──
     register_rest_route('wakecamp/v1', '/drinks', [
@@ -284,13 +285,13 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
-    /* ════════════════════════════════════════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════════════
        OBSTACLES MAP-CONFIG
        GET = öffentlich (Frontend-Rendering)
        POST = geschützt (Backend-Verwaltung nutzt diese Route noch)
        
        TODO: Langfristig POST komplett ins Backend (be/ctrl/obstacles.php) verlagern
-    ════════════════════════════════════════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════════════ */
 
     register_rest_route('wakecamp/v1', '/obstacles/map-config', [
         [
@@ -400,9 +401,9 @@ add_action('rest_api_init', function() {
         ],
     ]);
 
-    /* ════════════════════════════════════════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════════════
        UTILITY-ROUTEN
-    ════════════════════════════════════════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════════════ */
 
     // ── Single Item by ID (mit Stock-Filter) ──
     // ZWECK: QR-Codes/Deeplinks zu einzelnen Produkten
@@ -445,10 +446,10 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
     ]);
 
-    /* ════════════════════════════════════════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════════════
        🔒 GESCHÜTZTE VERWALTUNGS-ROUTEN
        Nur für Backend-Admins mit WordPress manage_options Berechtigung
-    ════════════════════════════════════════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════════════ */
 
     // ── DS-Settings (Design + Instagram-Config) ──
     // 🔒 SICHERHEIT: NUR für WordPress-Admins
@@ -547,10 +548,70 @@ add_action('rest_api_init', function() {
         ],
     ]);
 
-    /* ════════════════════════════════════════════════════════════════════════════
+    // ── Options Read/Write Endpunkt (Generic Key-Value Store) ──
+    // 🔒 SICHERHEIT: NUR mit gültigem Secret (Backend-Zugriff)
+    // ZWECK: Generischer Zugriff auf wp_options für Backend-System
+    register_rest_route('wakecamp/v1', '/options/(?P<key>[a-zA-Z0-9_-]+)', [
+        // GET: Liest eine einzelne wp_option
+        'methods'             => 'GET',
+        'callback'            => function(WP_REST_Request $req) {
+            $key = sanitize_key($req['key']);
+            $value = get_option($key, null);
+            
+            return rest_ensure_response([
+                'key'   => $key,
+                'value' => $value,
+                'found' => ($value !== null),
+            ]);
+        },
+        'permission_callback' => function(WP_REST_Request $req) {
+            // 🔒 NUR mit gültigem Secret (Backend-Zugriff)
+            $secret = $req->get_header('X-WCR-Secret') ?: $req->get_param('wcr_secret');
+            return ($secret === WCR_DS_API_SECRET);
+        },
+    ]);
+
+    register_rest_route('wakecamp/v1', '/options', [
+        // POST: Schreibt/Aktualisiert eine wp_option
+        'methods'             => 'POST',
+        'callback'            => function(WP_REST_Request $req) {
+            $key   = sanitize_key($req->get_param('key') ?? '');
+            $value = $req->get_param('value'); // Kann auch Array/null sein
+            
+            if (empty($key)) {
+                return new WP_Error('invalid_key', 'Key ist erforderlich', ['status' => 400]);
+            }
+            
+            // Wenn value === null → Option löschen
+            if ($value === null) {
+                $deleted = delete_option($key);
+                return rest_ensure_response([
+                    'ok'      => $deleted,
+                    'action'  => 'delete',
+                    'key'     => $key,
+                ]);
+            }
+            
+            // Ansonsten: Option speichern/aktualisieren
+            $updated = update_option($key, $value);
+            
+            return rest_ensure_response([
+                'ok'     => true,
+                'action' => 'update',
+                'key'    => $key,
+            ]);
+        },
+        'permission_callback' => function(WP_REST_Request $req) {
+            // 🔒 NUR mit gültigem Secret (Backend-Zugriff)
+            $secret = $req->get_param('wcr_secret') ?? '';
+            return ($secret === WCR_DS_API_SECRET);
+        },
+    ]);
+
+    /* ══════════════════════════════════════════════════════════════════════════
        INSTAGRAM REST ENDPOINTS
        Öffentlich – Daten bereits gefiltert durch WCR_Instagram Klasse
-    ════════════════════════════════════════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════════════ */
 
     register_rest_route('wakecamp/v1', '/instagram', [
         'methods'             => 'GET',
