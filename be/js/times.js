@@ -106,7 +106,19 @@ function sendData(date, col, val, onSuccess, onError, extra = {}) {
         })
     })
     .then(r => r.json())
-    .then(d => { if (d.success) onSuccess(); else onError(d.error || 'Unbekannter Fehler'); })
+    .then(d => { 
+        if (d.success) {
+            // ── CSRF-Token nach Rotation aktualisieren ──
+            // API hat neues Token zurückgegeben, Frontend muss es speichern
+            // damit nächster Request auf derselben Seite funktioniert
+            if (d.csrf_token) {
+                document.body.dataset.csrf = d.csrf_token;
+            }
+            onSuccess(); 
+        } else {
+            onError(d.error || 'Unbekannter Fehler'); 
+        }
+    })
     .catch(err => onError(err.message || err));
 }
 
