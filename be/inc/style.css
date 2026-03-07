@@ -1060,7 +1060,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 .dash-card .icon { font-size: 32px; }
 .dash-card .lbl  { font-size: 13px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
 
-/* ── Status-Banner (Cache-Bust-Feedback) - ERSTES VORKOMMEN ── */
+/* ── Status-Banner (Kleines Design) - BLOCK 1 ── */
+/* Hinweis: padding: 10px 16px; font-size: 13px; margin-bottom: 16px; display: none standardmäßig */
 .status-banner {
     padding: 10px 16px;
     border-radius: var(--radius-sm);
@@ -1069,12 +1070,9 @@ input:checked + .slider:before { transform: translateX(20px); }
     margin-bottom: 16px;
     display: none;
 }
-/* ✅ Migriert: rgba(52,199,89,.12) → rgba(var(--success-rgb), var(--alpha-12)) */
-/* ✅ Migriert: #1c7c34 → var(--success-dark) */
 .status-banner.ok  { background: rgba(var(--success-rgb), var(--alpha-12));  color: var(--success-dark); display: block; }
-/* ✅ Migriert: rgba(255,59,48,.10) → rgba(var(--danger-rgb), var(--alpha-10)) */
-/* ✅ Migriert: #c0392b → var(--danger-dark) */
-.status-banner.err { background: rgba(var(--danger-rgb), var(--alpha-10));  color: var(--danger-dark); display: block; }
+.status-banner.err,
+.status-banner.error { background: rgba(var(--danger-rgb), var(--alpha-10));  color: var(--danger-dark); display: block; }
 
 /* ───────────────────────────────────────────────────────────────────
    13. ROLLEN-SYSTEM v7  (✅ MIGRIERT auf Variablen-System)
@@ -1157,14 +1155,11 @@ input:checked + .slider:before { transform: translateX(20px); }
 .dash-card-highlight { border: 2px solid var(--primary); }
 .dashboard-grid { margin-bottom: 40px; }
 
-/* ── Status Banner - ZWEITES VORKOMMEN (mit Border) ── */
-/* ⚠️ HINWEIS: Doppelte Regel - wird in separatem Refactoring-Schritt bereinigt */
+/* ── Status Banner (Großes Design mit Border) - BLOCK 2 ── */
+/* ⚠️ TODO: Nach PHP-Code-Review prüfen ob dieser Block noch benötigt wird */
+/* Hinweis: padding: 12px 16px; font-size: 14px; margin-bottom: 20px; MIT border */
+/* Unterschiede zu Block 1: größere padding/font-size/margin + border + kein display:none */
 .status-banner { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; margin-bottom: 20px; }
-/* ✅ Migriert: rgba(52,199,89,.12) → rgba(var(--success-rgb), var(--alpha-12)) */
-/* ✅ Migriert: #1c7c34 → var(--success-dark) */
-/* ✅ Migriert: rgba(52,199,89,.3) → rgba(var(--success-rgb), var(--alpha-30)) */
 .status-banner.ok  { background: rgba(var(--success-rgb), var(--alpha-12));  color: var(--success-dark); border: 1px solid rgba(var(--success-rgb), var(--alpha-30)); }
-/* ✅ Migriert: rgba(255,59,48,.10) → rgba(var(--danger-rgb), var(--alpha-10)) */
-/* ✅ Migriert: #c0392b → var(--danger-dark) */
-/* ✅ Migriert: rgba(255,59,48,.3) → rgba(var(--danger-rgb), var(--alpha-30)) */
+.status-banner.err,
 .status-banner.error { background: rgba(var(--danger-rgb), var(--alpha-10)); color: var(--danger-dark); border: 1px solid rgba(var(--danger-rgb), var(--alpha-30)); }
