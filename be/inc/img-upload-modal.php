@@ -9,7 +9,7 @@
 if (!wcr_is_admin()) return; // Nur für admin + cernal
 ?>
 
-<!-- ── Bild-Upload Modal ──────────────────────────────────── -->
+<!-- ── Bild-Upload Modal ────────────────────────────────────────────────────── -->
 <div id="img-modal" class="img-modal-overlay" style="display:none" onclick="if(event.target===this)closeImgModal()">
   <div class="img-modal-box">
 
@@ -133,7 +133,7 @@ var _imgModal = {
     file:    null,
 };
 
-// ── Modal öffnen ──────────────────────────────────────────────
+// ── Modal öffnen ──────────────────────────────────────────────────────────────
 function openImgModal(table, nummer, productName, currentUrl) {
     _imgModal.table   = table;
     _imgModal.nummer  = nummer;
@@ -172,7 +172,7 @@ function resetImgModal() {
     hideImgStatus();
 }
 
-// ── Datei auswählen / Drop ────────────────────────────────────
+// ── Datei auswählen / Drop ────────────────────────────────────────────────────────
 function handleImgSelect(input) {
     if (input.files && input.files[0]) showImgPreview(input.files[0]);
 }
@@ -198,7 +198,7 @@ function showImgPreview(file) {
     reader.readAsDataURL(file);
 }
 
-// ── Upload senden ──────────────────────────────────────────────
+// ── Upload senden ────────────────────────────────────────────────────────────────
 function doImgUpload() {
     if (!_imgModal.file) return;
     var btn = document.getElementById('img-upload-btn');
@@ -210,6 +210,8 @@ function doImgUpload() {
     fd.append('file',   _imgModal.file);
     fd.append('table',  _imgModal.table);
     fd.append('nummer', _imgModal.nummer);
+    // ── CSRF-Token anhängen ──
+    fd.append('csrf_token', document.body.dataset.csrf || '');
 
     fetch('/be/api/upload_image.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
@@ -236,13 +238,15 @@ function doImgUpload() {
         });
 }
 
-// ── Bild löschen ───────────────────────────────────────────────
+// ── Bild löschen ────────────────────────────────────────────────────────────────
 function deleteImg() {
     if (!confirm('Bild von "' + _imgModal.product + '" entfernen?')) return;
     var fd = new FormData();
     fd.append('table',  _imgModal.table);
     fd.append('nummer', _imgModal.nummer);
     fd.append('delete', '1');
+    // ── CSRF-Token anhängen ──
+    fd.append('csrf_token', document.body.dataset.csrf || '');
 
     fetch('/be/api/upload_image.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
@@ -258,7 +262,7 @@ function deleteImg() {
         });
 }
 
-// ── Produktkarte in der Liste aktualisieren ────────────────────
+// ── Produktkarte in der Liste aktualisieren ────────────────────────────────────────────────
 function updateCardImage(nummer, url) {
     var card = document.getElementById('card-' + nummer);
     if (!card) return;
