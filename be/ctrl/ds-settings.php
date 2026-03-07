@@ -1,10 +1,11 @@
 <?php
 /**
- * ctrl/ds-settings.php — DS Zentraler Controller v7
+ * ctrl/ds-settings.php — DS Zentraler Controller v8
  * Schreiben + Lesen komplett über WP REST API (update_option / get_option).
  * PDO-User hat kein Schreibrecht auf wp_options — WP-Brücke löst das.
  * 
  * v7: + CSRF-Schutz für alle POST-Aktionen
+ * v8: + wcr_secret für alle GET-Requests zu /ds-settings (dsc_api_load, ig_get)
  */
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
@@ -44,7 +45,7 @@ $COLORS = [
     'clr_bg_dark' => ['Hintergrund Dunkel', 'Karten-Hintergrund'],
 ];
 
-// ── WP REST API Hilfsfunktionen ────────────────────────────────────
+// ── WP REST API Hilfsfunktionen ──────────────────────────────
 
 function dsc_curl(string $url, ?array $postData = null): array {
     $ch = curl_init($url);
@@ -71,8 +72,12 @@ function dsc_curl(string $url, ?array $postData = null): array {
     ];
 }
 
+/**
+ * Lädt DS-Settings aus WP REST API mit wcr_secret Authentifizierung
+ */
 function dsc_api_load(array $defaults): array {
-    $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings');
+    // GET mit wcr_secret Parameter (konsistent mit dsc_get_option)
+    $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings?wcr_secret=' . urlencode(DSC_WP_SECRET));
     if (!$r['ok'] || !isset($r['json']['options'])) {
         return ['opts' => $defaults, 'theme' => 'glass'];
     }
@@ -151,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // ── Farben / Font speichern ──────────────────────────────────────────
+        // ── Farben / Font speichern ────────────────────────────────────────────
         if ($action === 'save') {
             $new = [];
             foreach (array_keys($COLORS) as $k) {
@@ -191,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // ── Instagram Settings speichern ──────────────────────────────────────────
+        // ── Instagram Settings speichern ────────────────────────────────────────────
         if ($action === 'ig_save') {
             $ig_fields = [
                 'wcr_instagram_token'          => 'strval',
@@ -236,16 +241,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ── Laden ──────────────────────────────────────────────────────────────
+// ── Laden ──────────────────────────────────────────────────────────────────
 $loaded      = dsc_api_load($DEFAULTS);
 $opts        = $savedOpts  ?? $loaded['opts'];
 $activeTheme = $savedTheme ?? $loaded['theme'];
 
 // ── Instagram-Options aus WP lesen ────────────────────────────────────────────
+/**
+ * Lädt Instagram-Einstellungen aus WP REST API mit wcr_secret Authentifizierung
+ */
 function ig_get(string $key, $default = '') {
     static $cache = null;
     if ($cache === null) {
-        $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings');
+        // GET mit wcr_secret Parameter (konsistent mit dsc_api_load)
+        $r = dsc_curl(DSC_WP_API_BASE . '/ds-settings?wcr_secret=' . urlencode(DSC_WP_SECRET));
         $cache = ($r['ok'] && isset($r['json']['instagram'])) ? $r['json']['instagram'] : [];
     }
     return $cache[$key] ?? $default;
