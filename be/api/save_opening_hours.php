@@ -69,7 +69,13 @@ try {
             ]);
         }
 
-        echo json_encode(['success' => (bool)$ok]);
+        // ── Token nach erfolgreicher Rotation zurückgeben ──
+        // wcr_verify_csrf_silent() hat bereits neues Token generiert,
+        // Frontend muss es für nächsten Request aktualisieren
+        echo json_encode([
+            'success' => (bool)$ok,
+            'csrf_token' => wcr_csrf_token()
+        ]);
 
     } elseif ($db instanceof mysqli) {
 
@@ -89,7 +95,13 @@ try {
         }
 
         $ok = $stmt->execute();
-        echo json_encode(['success' => $ok, 'mysqli_error' => $db->error ?: null]);
+        
+        // ── Token nach erfolgreicher Rotation zurückgeben ──
+        echo json_encode([
+            'success' => $ok,
+            'csrf_token' => wcr_csrf_token(),
+            'mysqli_error' => $db->error ?: null
+        ]);
     }
 
 } catch (Exception $e) {
