@@ -2,13 +2,16 @@
 /**
  * ctrl/obstacles.php — Obstacles-Verwaltung + Karten-Einstellungen
  * lat/lon statt pos_x/y – einmal eingeben, alle Modi korrekt
+ * SECURITY v8: Erfordert edit_content Permission (cernal, admin)
  */
 
 $PAGE_TITLE = 'Obstacles';
 
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/db.php';
-wcr_require('view_media');
+
+// ── SECURITY: Login + Permission erforderlich ──
+wcr_require('edit_content');
 
 $db = $pdo;
 
@@ -377,7 +380,7 @@ $maxRows = max(5, count($rows) + 3);
         'light':            'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
         'satellite-labels': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
     };
-    var TYPE_ICONS = {kicker:'🚀',rail:'🟧',box:'🟦',fun:'⭐',slider:'🟩','default':'🟣'};
+    var TYPE_ICONS = {kicker:'🚀',rail:'🟧',box:'🟦',fun:'⭐',slider:'🟩','default':'🔵'};
 
     var slZ=document.getElementById('sl-zoom'), slLat=document.getElementById('sl-lat'),
         slLon=document.getElementById('sl-lon'), slRot=document.getElementById('sl-rot');
