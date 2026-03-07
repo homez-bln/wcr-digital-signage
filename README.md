@@ -26,6 +26,8 @@
 
 ## 🏗️ Architektur-Übersicht
 
+> **Hinweis:** Die folgende Darstellung ist eine **konzeptionelle Übersicht** zur Verdeutlichung der System-Architektur. Die tatsächliche Dateistruktur weicht davon ab – siehe Abschnitt "Verzeichnisstruktur" für exakte Pfade.
+
 **Zwei-System-Architektur** für optimale Trennung von Frontend und Backend:
 
 ```
@@ -86,30 +88,74 @@ git clone https://github.com/homez-bln/wcr-digital-signage.git
 cd wcr-digital-signage
 ```
 
-### Verzeichnisstruktur
+### Verzeichnisstruktur (Reale Dateiorte)
 
 ```
 wcr-digital-signage/
 ├── wcr-digital-signage/          # WordPress-Plugin
 │   ├── wcr-digital-signage.php   # Haupt-Plugin-Datei
 │   ├── includes/                 # Plugin-Logik
-│   │   ├── rest-api.php          # Read-Only REST-API
-│   │   ├── shortcodes*.php       # Shortcode-Funktionen
-│   │   └── enqueue.php           # CSS/JS Assets
+│   │   ├── rest-api.php          # Read-Only REST-API (Namespace: wakecamp/v1)
+│   │   ├── rest-screenshot.php   # Screenshot-API (Sonderfall mit CSRF)
+│   │   ├── shortcodes.php        # Shortcode-Registrierung (zentral)
+│   │   ├── shortcodes-content.php   # Content-Shortcodes (Menü, Preislisten)
+│   │   ├── shortcodes-display.php   # Display-Shortcodes (Wetter, Windkarte)
+│   │   ├── shortcodes-widgets.php   # Widget-Shortcodes (Animationen)
+│   │   ├── shortcode-kino.php    # Legacy Kino-Shortcode
+│   │   ├── shortcode-produkte.php   # Legacy Produkte-Shortcode
+│   │   ├── instagram.php         # Instagram-API-Klasse
+│   │   ├── screenshot.php        # Screenshot-Generator
+│   │   ├── enqueue.php           # CSS/JS Assets Enqueue
+│   │   └── db.php                # WordPress-DB-Connection
 │   └── assets/                   # Frontend-Assets
-│       ├── css/plugin-styles.css
-│       └── js/wcr-frontend.js
+│       ├── css/                  # Plugin-Styles
+│       │   ├── wcr-ds-global.css       # Globale Styles
+│       │   ├── wcr-ds-components.css   # Komponenten
+│       │   ├── wcr-ds-landscape.css    # Landscape-Layout
+│       │   ├── wcr-ds-portrait.css     # Portrait-Layout
+│       │   ├── wcr-ds-unified.css      # Unified Design System
+│       │   ├── wcr-ds-theme-glass.css  # Theme: Glass
+│       │   ├── wcr-produkte.css        # Produkte-Styles
+│       │   ├── wcr-kino-slider.css     # Kino-Slider
+│       │   ├── wcr-instagram.css       # Instagram-Widget
+│       │   ├── wcr-instagram-video.css # Instagram-Video
+│       │   ├── wcr-obstacles-map.css   # Obstacles-Karte
+│       │   └── themes/                 # Theme-Unterordner
+│       └── js/                   # Plugin-JavaScript
+│           ├── wcr-frontend.js   # Hauptlogik
+│           ├── wcr-wetter.js     # Wetter-Widget
+│           └── ...
 │
 ├── be/                           # Standalone Backend
 │   ├── index.php                 # Dashboard
 │   ├── login.php                 # Login-Seite
+│   ├── logout.php                # Logout
+│   ├── update_ticket.php         # Ticket-Update (Legacy)
 │   ├── inc/
 │   │   ├── auth.php              # Session + Rollen + CSRF
-│   │   └── db.php                # DB-Verbindung (PDO)
+│   │   ├── db.php                # DB-Verbindung (PDO)
+│   │   ├── menu.php              # Navigation
+│   │   ├── style.css             # ✅ Backend-Styles (NICHT be/css/!)
+│   │   └── debug.php             # Debug-Panel
 │   ├── ctrl/                     # Controller (Seiten)
+│   │   ├── drinks.php
+│   │   ├── food.php
+│   │   ├── times.php
+│   │   ├── kino.php
+│   │   ├── obstacles.php
+│   │   ├── ds-seiten.php
+│   │   ├── ds-settings.php
+│   │   ├── users.php
+│   │   └── ...
 │   ├── api/                      # REST-APIs (Write)
-│   ├── css/backend-styles.css    # Backend-Styles
+│   │   ├── drinks.php
+│   │   ├── food.php
+│   │   ├── users.php
+│   │   └── ...
+│   ├── js/                       # Backend-JavaScript
+│   ├── img/                      # Backend-Images
 │   └── _deprecated/              # Archiv alter Dateien
+│       └── README.md
 │
 ├── .github/workflows/deploy.yml  # GitHub Actions Deployment
 ├── ARCHITECTURE.md               # 📚 Vollständige technische Dokumentation
@@ -175,15 +221,27 @@ cp -r be /path/to/webspace/be/
 
 ### Plugin REST-API (Read-Only)
 
-**Namespace:** `wcr/v1`
+**Namespace:** `wakecamp/v1` *(nicht `wcr/v1`!)*
 
 | Route | Zweck | Zugriff |
 |-------|-------|--------|
-| `GET /wcr/v1/drinks` | Getränkekarte | ✅ Öffentlich |
-| `GET /wcr/v1/food` | Speisekarte | ✅ Öffentlich |
-| `GET /wcr/v1/coffee` | Kaffeekarte | ✅ Öffentlich |
-| `GET /wcr/v1/kino` | Kino-Programm | ✅ Öffentlich |
-| `GET /wcr/v1/wetter` | Wetter-Daten | ✅ Öffentlich |
+| `GET /wakecamp/v1/drinks` | Getränkekarte | ✅ Öffentlich |
+| `GET /wakecamp/v1/food` | Speisekarte | ✅ Öffentlich |
+| `GET /wakecamp/v1/ice` | Eiskarte | ✅ Öffentlich |
+| `GET /wakecamp/v1/cable` | Cable-Park-Preise | ✅ Öffentlich |
+| `GET /wakecamp/v1/camping` | Camping-Preise | ✅ Öffentlich |
+| `GET /wakecamp/v1/kino` | Kino-Programm | ✅ Öffentlich |
+| `GET /wakecamp/v1/events` | Events | ✅ Öffentlich |
+| `GET /wakecamp/v1/obstacles` | Obstacles-Map | ✅ Öffentlich |
+| `GET /wakecamp/v1/instagram` | Instagram-Posts | ✅ Öffentlich |
+
+**Sonderfälle:**
+
+| Route | Methoden | Zugriff | Status |
+|-------|----------|---------|--------|
+| `/wakecamp/v1/obstacles/map-config` | GET | ✅ Öffentlich | ✅ Bleibt so |
+| `/wakecamp/v1/obstacles/map-config` | POST | 🔒 Secret/Admin | ⚠️ TODO: Ins Backend |
+| `/wakecamp/v1/ds-settings` | GET/POST | 🔒 Admin | ⚠️ TODO: Ins Backend |
 
 ### Backend REST-API (Write)
 
