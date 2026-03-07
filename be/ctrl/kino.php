@@ -7,10 +7,10 @@
  * Zweck    : Filme verwalten (hinzufügen, bearbeiten, löschen)
  *            Cover-Bild, Titel, Spieltag, Sortierung
  *
- * SECURITY v8: Erfordert edit_content Permission (cernal, admin)
+ * SECURITY v9: Erfordert edit_content Permission + CSRF-Token
  *
  * Abhängigkeiten:
- *   be/inc/auth.php          → require_login(), wcr_require()
+ *   be/inc/auth.php          → require_login(), wcr_require(), wcr_verify_csrf()
  *   be/inc/db.php            → $db (PDO)
  *   be/inc/style.css         → gemeinsames Apple-Design-System
  *
@@ -31,6 +31,9 @@ $PAGE_TITLE = 'Kino';
 
 // ── POST: Film hinzufügen / aktualisieren / löschen ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // ── CSRF-Schutz ──
+    wcr_verify_csrf();
+    
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add' || $action === 'update') {
@@ -273,6 +276,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars(urldecode($_GET['msg'])) : '';
             <div class="kino-card">
                 <h4><?= $edit ? '✏️ Film bearbeiten' : '➕ Neuer Film' ?></h4>
                 <form method="POST">
+                    <?= wcr_csrf_field() ?>
                     <input type="hidden" name="action" value="<?= $edit ? 'update' : 'add' ?>">
                     <?php if ($edit): ?>
                     <input type="hidden" name="id" value="<?= $edit['id'] ?>">
@@ -357,6 +361,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars(urldecode($_GET['msg'])) : '';
                                 <a href="kino.php?edit=<?= $film['id'] ?>">✏️ Bearbeiten</a>
                                 <form method="POST" style="flex:1;margin:0;" 
                                       onsubmit="return confirm('Film wirklich löschen?');">
+                                    <?= wcr_csrf_field() ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?= $film['id'] ?>">
                                     <button type="submit" class="danger">🗑️ Löschen</button>
