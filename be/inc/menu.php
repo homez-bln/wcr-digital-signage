@@ -1,6 +1,6 @@
 <?php
 /**
- * inc/menu.php v8 — Rollen-bewusstes Menü + Design-Token-Bridge
+ * inc/menu.php v9 — Rollen-bewusstes Menü + Design-Token-Bridge + Rechte-Matrix
  */
 $_currentScript = basename($_SERVER['PHP_SELF']);
 $_currentQuery  = $_SERVER['QUERY_STRING'] ?? '';
@@ -60,6 +60,13 @@ require_once __DIR__ . '/design-tokens.php';
     <a href="/be/ctrl/users.php"
        class="<?= $_currentScript === 'users.php' ? 'active' : '' ?>">
       👥 Benutzer
+    </a>
+  <?php endif; ?>
+
+  <?php if (wcr_is_cernal()): ?>
+    <a href="/be/ctrl/permissions.php"
+       class="<?= $_currentScript === 'permissions.php' ? 'active' : '' ?>">
+      🔐 Rechte
     </a>
   <?php endif; ?>
 
