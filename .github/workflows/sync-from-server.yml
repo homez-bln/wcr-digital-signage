@@ -1,4 +1,4 @@
-name: Sync from IONOS Server
+name: Sync from IONOS Server (FTP)
 
 # Manuell ausführbar über GitHub UI (Actions Tab)
 on:
@@ -14,44 +14,55 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Setup SSH Key
+      - name: Install lftp
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.IONOS_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          
-          # Debug: SSH Key prüfen (ohne private Daten zu zeigen)
-          echo "SSH Key first line:"
-          head -n 1 ~/.ssh/id_rsa
-          echo "SSH Key line count: $(wc -l < ~/.ssh/id_rsa)"
-          
-          # Host zu known_hosts hinzufügen
-          ssh-keyscan -H ${{ secrets.IONOS_HOST }} >> ~/.ssh/known_hosts 2>&1
+          sudo apt-get update
+          sudo apt-get install -y lftp
       
-      - name: Test SSH Connection
+      - name: Download from FTP Server
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          IONOS_HOST: ${{ secrets.IONOS_HOST }}
         run: |
-          echo "Testing SSH connection to ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }}..."
-          ssh -v -o StrictHostKeyChecking=no \
-            ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }} \
-            "echo 'SSH connection successful!' && pwd" 2>&1
-      
-      - name: Pull Code from IONOS Server
-        run: |
-          echo "Syncing from: ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }}:${{ secrets.IONOS_PATH }}/"
+          # Temporäres Verzeichnis für Download
+          mkdir -p /tmp/server-backup
           
+          echo "Connecting to FTP server..."
+          
+          # lftp für rekursiven Download mit Mirror
+          lftp -e "
+            set ssl:verify-certificate no;
+            set ftp:ssl-allow yes;
+            set ftp:ssl-force yes;
+            open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER;
+            mirror --verbose \
+              --exclude .git/ \
+              --exclude .github/ \
+              --exclude node_modules/ \
+              --exclude wp-content/uploads/ \
+              --exclude .env \
+              /wcr-digital-signage /tmp/server-backup;
+            bye
+          "
+          
+          echo "Download completed. Files in /tmp/server-backup:"
+          ls -la /tmp/server-backup
+      
+      - name: Sync to Repository
+        run: |
           # Lokale Änderungen verwerfen
           git reset --hard HEAD
           
-          # Code vom Server per rsync holen
-          rsync -avz --delete \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='node_modules' \
-            --exclude='.env' \
-            --exclude='wp-content/uploads' \
-            -e "ssh -o StrictHostKeyChecking=no" \
-            ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }}:${{ secrets.IONOS_PATH }}/ \
-            ./ 2>&1
+          # Alte Dateien löschen (außer .git und .github)
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
+          
+          # Neue Dateien kopieren
+          cp -r /tmp/server-backup/* ./
+          
+          echo "Files synced. Repository content:"
+          ls -la
       
       - name: Commit and Push to GitHub
         run: |
@@ -60,8 +71,9 @@ jobs:
           
           if [[ -n $(git status -s) ]]; then
             git add .
-            git commit -m "Sync from IONOS server [$(date +'%Y-%m-%d %H:%M:%S')]"
+            git commit -m "Sync from IONOS server via FTP [$(date +'%Y-%m-%d %H:%M:%S')]"
             git push origin main
+            echo "✅ Changes pushed to GitHub"
           else
-            echo "Keine Änderungen vom Server"
+            echo "ℹ️ Keine Änderungen vom Server"
           fi
