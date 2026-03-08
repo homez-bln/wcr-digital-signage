@@ -11,6 +11,9 @@
  *
  * FIX v10: Neues CSRF-Token wird IMMER zurückgegeben (auch bei Fehler),
  *          damit Token-Rotation nicht abbricht.
+ *
+ * FIX v11: Gruppen-Tabellen (wp_food_gruppen, wp_drinks_gruppen) benötigen
+ *          edit_products Permission.
  */
 declare(strict_types=1);
 require_once __DIR__ . '/inc/auth.php';
@@ -18,7 +21,7 @@ require_once __DIR__ . '/inc/auth.php';
 // ── SECURITY: Login + Permission + CSRF erforderlich ──
 // FIX: Permission je nach Tabelle prüfen
 $table = $_POST['table'] ?? '';
-if (in_array($table, ['ice', 'cable', 'camping', 'extra'], true)) {
+if (in_array($table, ['ice', 'cable', 'camping', 'extra', 'food', 'drinks', 'wp_food_gruppen', 'wp_drinks_gruppen'], true)) {
     wcr_require('edit_products');
 } else {
     wcr_require('edit_tickets');
@@ -66,7 +69,7 @@ if (!empty($data['ok'])) {
     $nummer = $_POST['nummer'] ?? '';
     $mode   = $_POST['mode']   ?? '';
 
-    if ($mode === 'price' || $mode === 'toggle') {
+    if ($mode === 'price' || $mode === 'toggle' || $mode === 'gruppe') {
         // REST-Endpoint im WP-Plugin aufrufen (wcr/v1/flush-cache)
         $flush = curl_init('https://www.wcr-webpage.de/wp-json/wcr/v1/flush-cache');
         curl_setopt_array($flush, [
