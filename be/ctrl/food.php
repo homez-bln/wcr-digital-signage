@@ -162,7 +162,7 @@ const TABLE = 'food';
 </script>
 <script src="/be/js/ctrl-shared.js"></script>
 <script>
-
+// FIX: updGruppe() muss NACH ctrl-shared.js kommen, da es getCsrfToken() verwendet
 function updGruppe(checkbox) {
     const typ      = checkbox.getAttribute('data-typ');
     const groupKey = checkbox.getAttribute('data-groupkey');
@@ -194,7 +194,13 @@ function updGruppe(checkbox) {
         body   : params.toString()
     })
     .then(r => r.json())
-    .then(d => { if (!d.ok) console.error('Gruppe-Fehler', d); })
+    .then(d => {
+        // ── Token-Rotation: Neues Token nach Response speichern ──
+        if (d.csrf_token) {
+            document.body.dataset.csrf = d.csrf_token;
+        }
+        if (!d.ok) console.error('Gruppe-Fehler', d);
+    })
     .catch(console.error);
 }
 </script>
