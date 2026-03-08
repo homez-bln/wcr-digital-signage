@@ -12,18 +12,34 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Vollständige History für sauberen Push
+          fetch-depth: 0
       
       - name: Setup SSH Key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.IONOS_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.IONOS_HOST }} >> ~/.ssh/known_hosts
+          
+          # Debug: SSH Key prüfen (ohne private Daten zu zeigen)
+          echo "SSH Key first line:"
+          head -n 1 ~/.ssh/id_rsa
+          echo "SSH Key line count: $(wc -l < ~/.ssh/id_rsa)"
+          
+          # Host zu known_hosts hinzufügen
+          ssh-keyscan -H ${{ secrets.IONOS_HOST }} >> ~/.ssh/known_hosts 2>&1
+      
+      - name: Test SSH Connection
+        run: |
+          echo "Testing SSH connection to ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }}..."
+          ssh -v -o StrictHostKeyChecking=no \
+            ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }} \
+            "echo 'SSH connection successful!' && pwd" 2>&1
       
       - name: Pull Code from IONOS Server
         run: |
-          # Lokale Änderungen verwerfen (Server ist Source of Truth)
+          echo "Syncing from: ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }}:${{ secrets.IONOS_PATH }}/"
+          
+          # Lokale Änderungen verwerfen
           git reset --hard HEAD
           
           # Code vom Server per rsync holen
@@ -33,15 +49,15 @@ jobs:
             --exclude='node_modules' \
             --exclude='.env' \
             --exclude='wp-content/uploads' \
+            -e "ssh -o StrictHostKeyChecking=no" \
             ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }}:${{ secrets.IONOS_PATH }}/ \
-            ./
+            ./ 2>&1
       
       - name: Commit and Push to GitHub
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
           
-          # Nur committen wenn es Änderungen gibt
           if [[ -n $(git status -s) ]]; then
             git add .
             git commit -m "Sync from IONOS server [$(date +'%Y-%m-%d %H:%M:%S')]"
