@@ -1,0 +1,51 @@
+name: Sync from IONOS Server
+
+# Manuell ausführbar über GitHub UI (Actions Tab)
+on:
+  workflow_dispatch:
+
+jobs:
+  sync-from-server:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Vollständige History für sauberen Push
+      
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.IONOS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.IONOS_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Pull Code from IONOS Server
+        run: |
+          # Lokale Änderungen verwerfen (Server ist Source of Truth)
+          git reset --hard HEAD
+          
+          # Code vom Server per rsync holen
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='wp-content/uploads' \
+            ${{ secrets.IONOS_USER }}@${{ secrets.IONOS_HOST }}:${{ secrets.IONOS_PATH }}/ \
+            ./
+      
+      - name: Commit and Push to GitHub
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          
+          # Nur committen wenn es Änderungen gibt
+          if [[ -n $(git status -s) ]]; then
+            git add .
+            git commit -m "Sync from IONOS server [$(date +'%Y-%m-%d %H:%M:%S')]"
+            git push origin main
+          else
+            echo "Keine Änderungen vom Server"
+          fi
