@@ -14,6 +14,8 @@
  *
  * FIX v11: Gruppen-Tabellen (wp_food_gruppen, wp_drinks_gruppen) benötigen
  *          edit_products Permission.
+ *
+ * FIX v12: CSRF-Token wird an interne API weitergeleitet (beide Checks nutzen gleiches Token).
  */
 declare(strict_types=1);
 require_once __DIR__ . '/inc/auth.php';
@@ -35,8 +37,12 @@ header('Content-Type: application/json; charset=utf-8');
 $API_URL = 'https://www.wcr-webpage.de/be/api/update_ticket.php';
 $TOKEN   = '5f581e2655f5b36d05a8ad3db821e5da4d0a0ea4dfe66314dcab1dd86bb64ed3';
 
+// FIX v12: CSRF-Token an interne API weiterleiten
+// Nach wcr_verify_csrf() wurde Token bereits rotiert.
+// Neues Token muss an API weitergegeben werden, damit deren CSRF-Check funktioniert.
 $postData          = $_POST;
 $postData['token'] = $TOKEN;
+$postData['csrf_token'] = wcr_csrf_token(); // Neues Token nach Rotation
 
 $ch = curl_init($API_URL);
 curl_setopt_array($ch, [
