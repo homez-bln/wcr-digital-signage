@@ -21,7 +21,7 @@ wcr_require('edit_products');
 
 $_canPrice = wcr_can('edit_prices');
 
-// ── Whitelist ───────────────────────────────────────────
+// ── Whitelist ────────────────────────────────────
 const LIST_TABLES = [
     'ice'     => ['label' => 'Eis',     'icon' => '🍦'],
     'cable'   => ['label' => 'Cable',   'icon' => '🏄'],
@@ -213,25 +213,31 @@ function upd(el, mode) {
     params.append('value', val);
     params.append('csrf_token', getCsrfToken());
     
-    fetch('../update_ticket.php', {
+    fetch('/be/update_ticket.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: params.toString()
     })
     .then(r => r.json())
     .then(d => {
+        // FIX v13: Token IMMER aktualisieren (auch bei Fehler!)
+        // Grund: Server rotiert Token auch bei Fehler, Frontend muss mitziehen.
+        if (d.csrf_token) {
+            document.body.dataset.csrf = d.csrf_token;
+        }
+        
         if (d.ok) {
-            // ── Token-Rotation: Neues Token nach Response speichern ──
-            if (d.csrf_token) {
-                document.body.dataset.csrf = d.csrf_token;
-            }
             s.textContent = 'OK'; s.className = 'status-msg visible success';
             setTimeout(() => { s.textContent = ''; s.className = 'status-msg'; }, 1500);
         } else {
             s.textContent = 'Err'; s.className = 'status-msg visible error';
+            console.error('Update-Fehler:', d.error);
         }
     })
-    .catch(() => { s.textContent = 'Err'; s.className = 'status-msg visible error'; });
+    .catch(err => { 
+        s.textContent = 'Err'; s.className = 'status-msg visible error';
+        console.error('Fetch-Fehler:', err);
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
