@@ -15,8 +15,8 @@
  *  edit_content  → cernal, admin      (Content verwalten: Kino, Obstacles, etc.)
  *  edit_tickets  → cernal, admin      (Tickets bearbeiten)
  *  view_times    → cernal, admin      (Öffnungszeiten-Seite)
- *  view_media    → cernal, admin      (Media-Seite)
- *  view_ds       → cernal, admin      (DS-Seiten-Vorschau)
+ *  view_media    → cernal, admin      (Media-Verwaltung)
+ *  view_ds       → cernal, admin      (Digital Signage Seiten)
  *  manage_users  → cernal, admin      (Benutzer anlegen/verwalten)
  *  debug         → cernal only        (Debug-Panel)
  *  toggle        → cernal, admin, user (An/Aus schalten)
@@ -325,9 +325,19 @@ function wcr_verify_csrf(bool $autoFail = true): bool {
     // hash_equals() verhindert Timing-Angriffe (constant-time comparison)
     if ($sentToken === '' || $validToken === '' || !hash_equals($validToken, $sentToken)) {
         if ($autoFail) {
+            // FIX v11: Auch bei Fehler NEUES Token zurückgeben!
+            // Token-Rotation darf nicht abbrechen, sonst funktioniert nächster Request nie.
+            // Altes Token wird trotzdem invalidiert (kein Replay möglich).
+            unset($_SESSION['wcr_csrf_token']);
+            $newToken = wcr_csrf_token();
+            
             http_response_code(403);
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+            echo json_encode([
+                'ok' => false, 
+                'error' => 'Invalid CSRF token',
+                'csrf_token' => $newToken // Neues Token für nächsten Request
+            ]);
             exit;
         }
         return false;
