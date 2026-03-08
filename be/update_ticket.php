@@ -2,18 +2,29 @@
 /**
  * update_ticket.php — Proxy zu api/update_ticket.php
  *
- * SECURITY v9: Erfordert Login + edit_tickets Permission + CSRF Token
+ * SECURITY v9: Erfordert Login + edit_products/edit_tickets Permission + CSRF Token
  *
  * FIX v6: Leitet direkt an die API weiter. Zusätzlich:
  *   Sendet nach erfolgreichem Update einen WP-REST-Request um den
  *   WordPress-Transient-Cache zu leeren, damit Preisänderungen
  *   sofort auf den Screens erscheinen (nicht erst nach 15 Min).
+ *
+ * FIX v10: Neues CSRF-Token wird IMMER zurückgegeben (auch bei Fehler),
+ *          damit Token-Rotation nicht abbricht.
  */
 declare(strict_types=1);
 require_once __DIR__ . '/inc/auth.php';
 
 // ── SECURITY: Login + Permission + CSRF erforderlich ──
-wcr_require('edit_tickets');
+// FIX: Permission je nach Tabelle prüfen
+$table = $_POST['table'] ?? '';
+if (in_array($table, ['ice', 'cable', 'camping', 'extra'], true)) {
+    wcr_require('edit_products');
+} else {
+    wcr_require('edit_tickets');
+}
+
+// CSRF-Prüfung (rotiert Token automatisch)
 wcr_verify_csrf(); // Exit mit 403 bei ungültigem Token
 
 header('Content-Type: application/json; charset=utf-8');
@@ -39,7 +50,11 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 if ($response === false) {
-    echo json_encode(['ok' => false, 'error' => 'Proxy-Fehler: ' . $err]);
+    echo json_encode([
+        'ok' => false, 
+        'error' => 'Proxy-Fehler: ' . $err,
+        'csrf_token' => wcr_csrf_token() // Token auch bei Fehler zurückgeben
+    ]);
     exit;
 }
 
@@ -48,7 +63,6 @@ $data = json_decode($response, true);
 // FIX: Nach erfolgreichem Update → WP-Transient-Cache leeren
 // damit Screens sofort neue Preise zeigen (nicht nach 15 min warten)
 if (!empty($data['ok'])) {
-    $table  = $_POST['table']  ?? '';
     $nummer = $_POST['nummer'] ?? '';
     $mode   = $_POST['mode']   ?? '';
 
@@ -65,16 +79,14 @@ if (!empty($data['ok'])) {
         curl_exec($flush); // Ergebnis ignorieren – non-blocking ist genug
         curl_close($flush);
     }
-    
-    // FIX v10: Neues CSRF-Token an Frontend weitergeben (Token-Rotation)
-    // wcr_verify_csrf() hat Token bereits rotiert, Frontend muss es speichern.
-    if (!isset($data['csrf_token'])) {
-        $data['csrf_token'] = wcr_csrf_token();
-    }
 }
 
+// FIX v10: Neues CSRF-Token IMMER zurückgeben (auch bei API-Fehler)
+// wcr_verify_csrf() hat Token bereits rotiert, Frontend muss es speichern.
+$data['csrf_token'] = wcr_csrf_token();
+
 if ($httpCode === 403) {
-    echo json_encode(['ok' => false, 'error' => 'Server blockiert Anfrage (403)']);
+    echo json_encode(['ok' => false, 'error' => 'Server blockiert Anfrage (403)', 'csrf_token' => wcr_csrf_token()]);
 } else {
     echo json_encode($data);
 }
