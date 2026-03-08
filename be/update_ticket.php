@@ -65,10 +65,16 @@ if (!empty($data['ok'])) {
         curl_exec($flush); // Ergebnis ignorieren – non-blocking ist genug
         curl_close($flush);
     }
+    
+    // FIX v10: Neues CSRF-Token an Frontend weitergeben (Token-Rotation)
+    // wcr_verify_csrf() hat Token bereits rotiert, Frontend muss es speichern.
+    if (!isset($data['csrf_token'])) {
+        $data['csrf_token'] = wcr_csrf_token();
+    }
 }
 
 if ($httpCode === 403) {
     echo json_encode(['ok' => false, 'error' => 'Server blockiert Anfrage (403)']);
 } else {
-    echo $response;
+    echo json_encode($data);
 }
