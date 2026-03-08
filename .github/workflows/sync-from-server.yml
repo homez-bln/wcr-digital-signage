@@ -1,6 +1,5 @@
 name: Sync from IONOS Server (FTP)
 
-# Manuell ausführbar über GitHub UI (Actions Tab)
 on:
   workflow_dispatch:
 
@@ -19,52 +18,64 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lftp
       
-      - name: Download from FTP Server
+      - name: Test FTP Connection
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          IONOS_HOST: ${{ secrets.IONOS_HOST }}
         run: |
-          # Temporäres Verzeichnis für Download
+          echo "Testing FTP connection to: $FTP_SERVER"
+          echo "Username: $FTP_USERNAME"
+          
+          # Test verschiedene Verbindungstypen
+          echo "=== Test 1: FTPS (explicit) ==="
+          lftp -e "set ssl:verify-certificate no; set ftp:ssl-allow yes; set ftp:ssl-force yes; open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER; ls; bye" || echo "FTPS failed"
+          
+          echo ""
+          echo "=== Test 2: FTP (plain) ==="
+          lftp -e "open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER; ls; bye" || echo "Plain FTP failed"
+          
+          echo ""
+          echo "=== Test 3: SFTP ==="
+          lftp -e "open sftp://$FTP_USERNAME:$FTP_PASSWORD@$FTP_SERVER; ls; bye" || echo "SFTP failed"
+      
+      - name: Download from FTP Server
+        if: false  # Erstmal deaktiviert bis Verbindung funktioniert
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
           mkdir -p /tmp/server-backup
           
-          echo "Connecting to FTP server..."
-          
-          # lftp für rekursiven Download mit Mirror
           lftp -e "
             set ssl:verify-certificate no;
             set ftp:ssl-allow yes;
             set ftp:ssl-force yes;
+            set net:timeout 30;
+            set net:max-retries 3;
             open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER;
+            cd /wcr-digital-signage || cd /html/wcr-digital-signage || cd wcr-digital-signage;
+            pwd;
             mirror --verbose \
               --exclude .git/ \
               --exclude .github/ \
               --exclude node_modules/ \
               --exclude wp-content/uploads/ \
               --exclude .env \
-              /wcr-digital-signage /tmp/server-backup;
+              . /tmp/server-backup;
             bye
           "
-          
-          echo "Download completed. Files in /tmp/server-backup:"
-          ls -la /tmp/server-backup
       
       - name: Sync to Repository
+        if: false
         run: |
-          # Lokale Änderungen verwerfen
           git reset --hard HEAD
-          
-          # Alte Dateien löschen (außer .git und .github)
           find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
-          
-          # Neue Dateien kopieren
           cp -r /tmp/server-backup/* ./
-          
-          echo "Files synced. Repository content:"
-          ls -la
       
       - name: Commit and Push to GitHub
+        if: false
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
@@ -73,7 +84,6 @@ jobs:
             git add .
             git commit -m "Sync from IONOS server via FTP [$(date +'%Y-%m-%d %H:%M:%S')]"
             git push origin main
-            echo "✅ Changes pushed to GitHub"
           else
-            echo "ℹ️ Keine Änderungen vom Server"
+            echo "Keine Änderungen"
           fi
