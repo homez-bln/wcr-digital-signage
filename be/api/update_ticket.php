@@ -2,11 +2,12 @@
 /**
  * api/update_ticket.php
  * v11: + Sicheres Error-Logging (kein Exception-Leaking)
+ * v12: + Support für wp_drinks_gruppen zusätzlich zu wp_food_gruppen
  *
  * Interner Backend-Endpunkt für Produkt-Updates:
  *  - Toggle stock (aktiv/inaktiv)
  *  - Preisänderung (nur admin/cernal)
- *  - Gruppen-Toggle (food)
+ *  - Gruppen-Toggle (food + drinks)
  *
  * Wird verwendet von: be/js/ctrl-shared.js
  * Aufgerufen aus: drinks.php, food.php, kino.php, etc.
@@ -33,7 +34,7 @@ if (!wcr_verify_csrf_silent()) {
 }
 
 // ── Whitelist + Parameter ──
-$allowed = ['cable', 'drinks', 'food', 'ice', 'camping', 'extra', 'wp_food_gruppen'];
+$allowed = ['cable', 'drinks', 'food', 'ice', 'camping', 'extra', 'wp_food_gruppen', 'wp_drinks_gruppen'];
 $table   = trim($_POST['table']  ?? '');
 $nr      = $_POST['nummer'] ?? '';
 $mode    = trim($_POST['mode']   ?? '');
@@ -50,7 +51,7 @@ if ($mode === 'price' && !wcr_can('edit_prices')) {
     exit(json_encode(['ok' => false, 'error' => 'Keine Berechtigung: Preise ändern erfordert admin oder cernal']));
 }
 
-// ── Business Logic (unverändert) ──
+// ── Business Logic ──
 try {
     if ($mode === 'price') {
         $stmt = $pdo->prepare("UPDATE `{$table}` SET preis = ? WHERE nummer = ?");
@@ -62,9 +63,17 @@ try {
         $stmt->execute([$stock, (int)$nr]);
 
     } elseif ($mode === 'gruppe') {
+        // FIX v12: Tabelle aus $_POST['table'] verwenden (wp_food_gruppen ODER wp_drinks_gruppen)
         $typ   = trim($nr);
         $aktiv = ($val === '1') ? 1 : 0;
-        $stmt  = $pdo->prepare("UPDATE wp_food_gruppen SET aktiv = ? WHERE typ = ?");
+        
+        // Validierung: Nur Gruppen-Tabellen erlaubt
+        if (!in_array($table, ['wp_food_gruppen', 'wp_drinks_gruppen'], true)) {
+            http_response_code(400);
+            exit(json_encode(['ok' => false, 'error' => 'Ungültige Gruppen-Tabelle']));
+        }
+        
+        $stmt = $pdo->prepare("UPDATE `{$table}` SET aktiv = ? WHERE typ = ?");
         $stmt->execute([$aktiv, $typ]);
 
     } else {
